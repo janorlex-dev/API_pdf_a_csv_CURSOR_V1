@@ -4,7 +4,14 @@ import csv
 import io
 import json
 import os
+import sys
+from pathlib import Path
 from typing import Optional
+
+# Asegura que `lib/` en la raíz del repo sea importable en Vercel.
+_ROOT = Path(__file__).resolve().parent.parent
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware

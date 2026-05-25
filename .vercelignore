@@ -1,0 +1,8 @@
+.cursor/
+docs/historico/
+.env
+.env.*
+*.log
+__pycache__/
+.venv/
+venv/
