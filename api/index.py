@@ -15,7 +15,7 @@ if str(_ROOT) not in sys.path:
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from lib.csv_builder import construir_csv, parsear_cabecera
 from lib.extractor_estructurado import extraer_preguntas
@@ -176,6 +176,12 @@ def _procesar(
         advertencias.extend(errores_validacion)
 
     return data, filas, columnas, cabecera, plantilla_detectada, no_parseadas, advertencias
+
+
+@app.get("/", include_in_schema=False)
+def raiz() -> RedirectResponse:
+    """Vercel sirve la web en /index.html; FastAPI intercepta / si no hay rewrite."""
+    return RedirectResponse("/index.html", status_code=307)
 
 
 @app.get("/api/health", response_model=HealthResponse)
