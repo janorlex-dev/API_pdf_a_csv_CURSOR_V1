@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-from .pdf_parser import PaginaPDF
+from .pdf_parser import PaginaPDF, _RE_CORTE_PLANTILLA
 
 
 _RE_PAREJA_LINEA = re.compile(
@@ -58,7 +58,9 @@ def extraer_plantilla(paginas: list[PaginaPDF]) -> dict[str, str]:
     for pagina in candidatas:
         if not pagina.texto:
             continue
-        parejas = _parejas_en_texto(pagina.texto)
+        partes = _RE_CORTE_PLANTILLA.split(pagina.texto, maxsplit=1)
+        texto_plantilla = partes[-1] if len(partes) > 1 else pagina.texto
+        parejas = _parejas_en_texto(texto_plantilla)
         if len(parejas) >= 5:
             return parejas
 

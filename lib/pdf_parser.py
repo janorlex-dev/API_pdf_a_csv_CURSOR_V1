@@ -10,38 +10,76 @@ class PaginaPDF:
     texto: str
 
 
+_RE_SOLO_NUM_PAGINA = re.compile(r"^\d{1,3}$")
+_RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
+_RE_CORTE_PLANTILLA = re.compile(
+    r"(?i)\n\s*(JUNIO|SEPT|SEPTIEMBRE|SOLUCION|PLANTILLA|RESPUESTAS)\b"
+)
+
+
 def _limpiar(texto: str) -> str:
-    """Limpieza mínima alineada con docs/base_pdf_a_csv.txt: no reformula
-    ni resume, solo normaliza saltos y espacios."""
+    """Limpieza mínima: no reformula ni resume, solo normaliza saltos y espacios."""
     texto = texto.replace("\r", "\n")
     texto = re.sub(r"[ \t]+", " ", texto)
     texto = re.sub(r"\n{3,}", "\n\n", texto)
     return texto.strip()
 
 
-def extraer_paginas(pdf_bytes: bytes) -> list[PaginaPDF]:
-    """Extrae el texto literal de cada página del PDF con PyMuPDF (fitz).
+def _quitar_ruido_pagina(texto: str) -> str:
+    """Elimina números de página sueltos y marcadores internos."""
+    texto = _RE_MARCADOR_PAGINA.sub("\n", texto)
+    lineas: list[str] = []
+    for linea in texto.splitlines():
+        s = linea.strip()
+        if _RE_SOLO_NUM_PAGINA.fullmatch(s):
+            continue
+        lineas.append(linea)
+    return _limpiar("\n".join(lineas))
 
-    No hace OCR: si el PDF es una imagen escaneada, las páginas saldrán
-    vacías y el extractor superior debe avisarlo. Esta v1 no incluye OCR.
-    """
+
+def _extraer_texto_pagina(page: object) -> str:
+    """Extrae texto en orden de lectura (sort=True) para PDFs de dos columnas."""
+    import fitz  # PyMuPDF
+
+    if not isinstance(page, fitz.Page):
+        return ""
+
+    texto = page.get_text("text", sort=True) or ""
+    if not texto.strip():
+        return ""
+
+    return _quitar_ruido_pagina(texto)
+
+
+def extraer_paginas(pdf_bytes: bytes) -> list[PaginaPDF]:
+    """Extrae el texto literal de cada página del PDF con PyMuPDF (fitz)."""
     import fitz  # PyMuPDF
 
     paginas: list[PaginaPDF] = []
     with fitz.open(stream=pdf_bytes, filetype="pdf") as doc:
         for i, page in enumerate(doc, start=1):
-            texto = page.get_text("text") or ""
-            paginas.append(PaginaPDF(numero=i, texto=_limpiar(texto)))
+            paginas.append(PaginaPDF(numero=i, texto=_extraer_texto_pagina(page)))
     return paginas
 
 
-def texto_completo(paginas: list[PaginaPDF]) -> str:
-    """Une todas las páginas separadas por marcador, útil para regex globales."""
+def texto_para_preguntas(paginas: list[PaginaPDF]) -> str:
+    """Une todas las páginas de preguntas, cortando la plantilla en la última hoja."""
+    if not paginas:
+        return ""
     partes: list[str] = []
-    for p in paginas:
-        if p.texto:
-            partes.append(f"\n--- PAGE {p.numero} ---\n{p.texto}")
-    return "\n".join(partes)
+    for i, pagina in enumerate(paginas):
+        if not pagina.texto:
+            continue
+        texto = pagina.texto
+        if i == len(paginas) - 1:
+            texto = _RE_CORTE_PLANTILLA.split(texto)[0].strip()
+        partes.append(texto)
+    return "\n\n".join(partes)
+
+
+def texto_completo(paginas: list[PaginaPDF]) -> str:
+    """Alias de ``texto_para_preguntas`` (sin marcadores PAGE)."""
+    return texto_para_preguntas(paginas)
 
 
 def es_pdf_sin_texto(paginas: list[PaginaPDF]) -> bool:
