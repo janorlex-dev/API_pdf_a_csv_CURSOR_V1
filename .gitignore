@@ -1,0 +1,66 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+
+# Entornos virtuales
+.venv/
+venv/
+env/
+ENV/
+
+# Variables de entorno locales (NUNCA subir a git)
+.env
+.env.local
+.env.*.local
+
+# Caches y herramientas
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+
+# Cobertura de tests
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+
+# Jupyter
+.ipynb_checkpoints/
+
+# --- Node / Vercel CLI (por si lo usas en local) ---
+node_modules/
+.npm
+.next/
+.cache/
+.vercel/
+
+# --- IDE / editores ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Builds / temporales ---
+dist/
+build/
+tmp/
+*.tmp
+*.log
+
+# --- Salidas del propio proyecto ---
+salida*.csv
+*.pdf
+!docs/**/*.pdf

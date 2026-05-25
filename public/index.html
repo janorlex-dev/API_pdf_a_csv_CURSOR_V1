@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>PDF a CSV</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="contenedor">
+      <header>
+        <h1>PDF a CSV</h1>
+        <p class="lead">
+          Sube un PDF de examen y descarga el CSV con cabecera
+          <code>numero,pregunta,a,b,c,d,correcta,materia</code>.
+        </p>
+      </header>
+
+      <form id="formulario" class="tarjeta">
+        <label class="campo">
+          <span>Archivo PDF</span>
+          <input id="archivo" type="file" accept="application/pdf" required />
+        </label>
+
+        <div class="fila">
+          <label class="campo">
+            <span>Materia / bloque</span>
+            <input id="materia" type="text" placeholder="comun, penal, laboral, penitenciario…" />
+          </label>
+
+          <label class="campo">
+            <span>Filas esperadas (opcional)</span>
+            <input id="filas_esperadas" type="number" min="1" placeholder="ej. 27 = 25 + 2 reservas" />
+          </label>
+        </div>
+
+        <label class="campo">
+          <span>Cabecera CSV (opcional)</span>
+          <input
+            id="cabecera"
+            type="text"
+            placeholder="numero,pregunta,a,b,c,d,correcta,materia"
+          />
+        </label>
+
+        <details>
+          <summary>Respuestas manuales (opcional)</summary>
+          <label class="campo">
+            <span>JSON {"1":"a","2":"b",...}</span>
+            <textarea id="respuestas" rows="3" placeholder='{"1":"a","2":"b"}'></textarea>
+          </label>
+        </details>
+
+        <div class="acciones">
+          <button id="btn-preview" type="button">Previsualizar</button>
+          <button id="btn-convertir" type="submit">Convertir y descargar</button>
+        </div>
+      </form>
+
+      <section id="resultado" class="tarjeta oculto"></section>
+
+      <footer>
+        <p>
+          API:
+          <a href="/api/health">/api/health</a> ·
+          <a href="/docs">/docs</a>
+        </p>
+      </footer>
+    </main>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

@@ -1,0 +1,69 @@
+---
+description: Reglas de dominio para la conversión PDF a CSV (literalidad, plantilla, reservas, anuladas)
+globs: ["lib/extractor_*.py", "lib/plantilla.py", "lib/csv_builder.py", "lib/validator.py", "api/**/*.py"]
+alwaysApply: true
+---
+
+# Dominio: PDF de examen → CSV
+
+Estas reglas son **vinculantes** para la lógica de extracción y vienen del
+documento `docs/base_pdf_a_csv.txt` (script Python de referencia) y de las
+instrucciones de negocio del usuario.
+
+## Literalidad estricta
+- **No** acortar enunciados.
+- **No** resumir opciones.
+- **No** reformular preguntas.
+- **No** corregir redacción del PDF salvo errores evidentes de OCR.
+- Mantener puntuación, mayúsculas y comillas tal como vienen.
+- Si hay comillas internas, `csv.writer` con `QUOTE_ALL` las escapa correctamente.
+
+## Plantilla de respuestas
+- Buscar **siempre** en las **últimas páginas** del PDF (la última suele tener
+  el solucionario). El módulo recorre las 3 últimas hacia atrás.
+- Solo aceptar una página como plantilla si tiene ≥ 5 parejas número-letra.
+- Si el cliente envía `respuestas`, su valor **sustituye** a lo detectado para
+  esos números (override manual).
+- Si una pregunta no tiene respuesta en plantilla ni en `respuestas`, la
+  columna `correcta` queda **vacía** y se añade advertencia.
+- Conservar marcadores de duda como `d?` literales.
+- Si la plantilla indica `ANULADA`, conservar la marca literal `anulada`.
+
+## Reservas
+- Incluir **siempre** las preguntas de reserva si aparecen numeradas en el
+  bloque de preguntas.
+- No omitirlas aunque la plantilla no les asigne respuesta.
+- Si el cliente pasa `filas_esperadas`, el validador avisa cuando faltan o
+  sobran (ej. 27 = 25 + 2 reservas; 22 = 20 + 2 reservas).
+
+## Anuladas
+- Si el PDF marca una pregunta como anulada, prefijar el enunciado con
+  `PREGUNTA ANULADA. ` (si no lo está ya).
+- No inventar la pregunta sustituta. Si el PDF la cita, se respeta tal cual.
+
+## Preguntas mal parseadas
+- Si el extractor **no encuentra las 4 opciones** (a, b, c, d) en una pregunta,
+  la fila se incluye con `parse_ok=False` y opciones vacías, **NO** se descarta.
+- Esos `numero` se devuelven en `preguntas_no_parseadas` para revisión humana.
+- Nunca rellenar los huecos con texto inventado.
+
+## Columna materia/bloque
+- Aceptar como sinónimos en la cabecera: `materia`, `bloque`, `tema`,
+  `asignatura`. Todos se rellenan con el valor del campo `materia` del form.
+- Respetar exactamente el valor que pase el usuario (mayúsculas, espacios).
+
+## Prohibiciones
+- **Nunca** responder jurídicamente las preguntas.
+- **Nunca** rellenar la columna `correcta` con conocimiento propio del modelo.
+- **Nunca** inventar opciones que no estén en el PDF.
+- **Nunca** cambiar la materia/bloque que el usuario haya indicado.
+- **Nunca** añadir columnas que el cliente no haya pedido.
+
+## Comprobación obligatoria antes de devolver el CSV
+1. Cabecera con el número de columnas pedido.
+2. Si hay `filas_esperadas`, número de filas útiles coincide.
+3. Todas las filas tienen el mismo número de columnas que la cabecera.
+4. No hay cabeceras repetidas dentro del archivo.
+5. No hay filas vacías al final.
+6. Listar `preguntas_no_parseadas` si las hay.
+7. Advertir si faltan respuestas en la plantilla.

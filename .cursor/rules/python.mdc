@@ -1,0 +1,38 @@
+---
+description: Estilo de código Python para el repo
+globs: ["**/*.py"]
+alwaysApply: true
+---
+
+# Estilo Python
+
+## General
+- Python **3.12+** (runtime fijado en `runtime.txt`).
+- `from __future__ import annotations` al inicio de cada módulo.
+- Anotaciones de tipos en **todas** las funciones públicas.
+- Strings en **español** para mensajes al usuario y comentarios cuando aporten valor.
+- Sin comentarios que solo narren el código. Comentar solo intención no obvia.
+
+## Dependencias
+- Solo las listadas en `requirements.txt`:
+  `fastapi`, `python-multipart`, `PyMuPDF`, `httpx`, `pydantic`.
+- **No** usar `pandas`, `numpy`, `openpyxl`, `pdfplumber`, `pypdf` ni librerías
+  pesadas: el bundle Vercel tiene límites de tamaño y tiempo de cold start.
+- El parser PDF es **PyMuPDF (`fitz`)** y se importa **dentro** de la función
+  `extraer_paginas` para no penalizar el arranque cuando no se usa.
+
+## Errores
+- En la API, lanzar `HTTPException(status_code, detail=...)` con mensajes
+  claros en español.
+- En `lib/` usar excepciones tipadas propias cuando aporten valor (ej. `BlobError`).
+- Nunca silenciar excepciones con `except: pass`.
+
+## CSV
+- Siempre `csv.QUOTE_ALL`, `delimiter=","`, `lineterminator="\n"`.
+- Encoding `utf-8-sig` (UTF-8 con BOM) para compatibilidad con Excel.
+- Cabecera explícita en la primera fila, sin filas vacías al final.
+
+## Pruebas (opcional pero recomendado)
+- Si se añaden tests, usar `pytest` y colocarlos en `tests/`.
+- Mockear `httpx` para no llamar a Vercel Blob en tests.
+- Para probar extractor: PDFs sintéticos pequeños en `tests/fixtures/`.

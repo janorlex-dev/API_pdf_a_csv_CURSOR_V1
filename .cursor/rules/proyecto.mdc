@@ -1,0 +1,48 @@
+---
+description: Proyecto API PDF a CSV (Vercel + Python). Aplicar siempre.
+alwaysApply: true
+---
+
+# Proyecto: API PDF a CSV (Vercel + Python)
+
+## Objetivo
+Convertir exámenes en PDF a CSV de forma **literal**, sin resumir ni inventar.
+La API se despliega en **Vercel** con runtime **Python (FastAPI)**.
+
+## Estructura
+- `api/index.py` — FastAPI app: `/api/health`, `/api/convert`, `/api/preview`.
+- `lib/` — módulos de dominio:
+  - `pdf_parser.py` (PyMuPDF / fitz)
+  - `plantilla.py` (respuestas en últimas hojas)
+  - `extractor_estructurado.py` (preguntas + opciones a/b/c/d, con `parse_ok`)
+  - `csv_builder.py` (QUOTE_ALL, UTF-8 con BOM)
+  - `validator.py` (filas, columnas, repetidas, vacías, `filas_esperadas`)
+  - `storage.py` (Vercel Blob)
+  - `models.py` (Pydantic)
+- `public/` — web mínima (`index.html`, `styles.css`, `app.js`).
+- `docs/base_pdf_a_csv.txt` — script Python de referencia (fuente del diseño).
+- `docs/historico/` — chats previos archivados (no se cargan).
+- `vercel.json`, `requirements.txt`, `runtime.txt`, `.env.example`.
+
+## Reglas operativas
+- **No** crear commits ni push automáticos. El usuario decide cuándo subir a Git.
+- **No** ejecutar `vercel deploy` desde el agente.
+- **No** añadir variables de entorno reales al repo: solo `.env.example`.
+- Antes de proponer cambios grandes en endpoints o esquema CSV, **preguntar**.
+- Idioma de mensajes, errores y commits: **español**.
+- Respetar límites Vercel: PDF máx 10 MB, función máx 60 s.
+
+## Estado actual confirmado por el usuario
+- Stack: Python 3.12 en Vercel.
+- Parser PDF: **PyMuPDF (`fitz`)**.
+- API pública, sin auth.
+- Almacenamiento: Vercel Blob persistente (no expira).
+- URLs con token aleatorio (no listables).
+- Cabecera CSV por defecto: `numero,pregunta,a,b,c,d,correcta,materia`.
+- Cabecera **configurable por petición** (sinónimos aceptados para la
+  columna materia: `materia`, `bloque`, `tema`, `asignatura`).
+- Modo único: **estructurado** (preguntas + opciones + plantilla).
+- Plantilla `correcta`: auto desde últimas páginas + override manual.
+- Preguntas mal parseadas: se **incluyen** con opciones vacías (`parse_ok=False`)
+  y se listan en `preguntas_no_parseadas`. **Nunca** se inventan.
+- No OCR en v1.

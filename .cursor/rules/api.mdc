@@ -1,0 +1,44 @@
+---
+description: Convenciones de la API HTTP
+globs: ["api/**/*.py", "lib/**/*.py"]
+alwaysApply: true
+---
+
+# Convenciones API
+
+## Endpoints
+- `GET /api/health` — estado del servicio. Nunca debe fallar salvo error grave.
+- `POST /api/convert` — `multipart/form-data` → JSON
+  `{ok, csv_url, filas, columnas, cabecera, plantilla_detectada,
+    preguntas_no_parseadas, advertencias}`.
+- `POST /api/preview` — igual que `convert` pero devuelve `muestra` (N filas)
+  y NO sube a Blob.
+- `GET /docs` — Swagger UI auto-generado por FastAPI.
+
+## Códigos de estado
+- `200` éxito.
+- `400` petición mal formada (PDF ausente, JSON inválido en `respuestas`,
+  `filas_esperadas` no entero).
+- `413` PDF supera `MAX_PDF_BYTES`.
+- `422` PDF sin texto seleccionable o sin preguntas detectables.
+- `503` `BLOB_READ_WRITE_TOKEN` ausente o Blob no responde.
+
+## Campos del formulario
+- `file` (obligatorio): archivo PDF.
+- `cabecera` (opcional): string separado por comas. Default desde
+  `DEFAULT_HEADER` o `numero,pregunta,a,b,c,d,correcta,materia`.
+- `materia` (opcional): valor fijo para columna materia/bloque/tema/asignatura.
+- `respuestas` (opcional): JSON `{ "1": "a", "2": "b" }`. Override manual.
+- `filas_esperadas` (opcional): entero. Si se aporta, el validador avisa si el
+  número de filas útiles no coincide (ej. 27 = 25 + 2 reservas).
+- `n` (solo preview, opcional, 1–50): nº de filas a devolver. Default 5.
+
+## CORS
+- `allow_origins=["*"]` mientras la API sea pública sin auth.
+- Métodos permitidos: `GET, POST, OPTIONS`.
+
+## Salida
+- En `convert`, devolver siempre `csv_url` apuntando a Vercel Blob.
+- En `preview`, no subir nada; `muestra` se construye releyendo el CSV en memoria.
+- `preguntas_no_parseadas` lista los `numero` con `parse_ok=False`. Se incluyen
+  en el CSV con opciones vacías para que el cliente las revise manualmente.

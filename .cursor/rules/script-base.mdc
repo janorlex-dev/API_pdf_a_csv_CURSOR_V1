@@ -1,0 +1,43 @@
+---
+description: Script Python de referencia (docs/base_pdf_a_csv.txt). Lectura obligatoria al tocar extractores o builder.
+globs: ["lib/**/*.py", "api/**/*.py"]
+alwaysApply: true
+---
+
+# Script base: `docs/base_pdf_a_csv.txt`
+
+Ese archivo es la **fuente del diseño** de esta API. Si modificas el extractor,
+la plantilla, el builder o el validador, **léelo primero** y mantén el
+comportamiento alineado con sus secciones 6 y 7.
+
+## Correspondencia código ↔ script base
+
+| Función del script base       | Módulo en `lib/`                                                  |
+| ----------------------------- | ----------------------------------------------------------------- |
+| `extract_text_from_pdf`       | `pdf_parser.extraer_paginas` (PyMuPDF, mismo `get_text("text")`). |
+| `clean_text`                  | `pdf_parser._limpiar`.                                            |
+| `parse_answer_key`            | `plantilla.extraer_plantilla` (limitado a últimas páginas).       |
+| `parse_questions_basic`       | `extractor_estructurado.extraer_preguntas`.                       |
+| `build_rows` + `write_csv`    | `csv_builder.construir_csv`.                                      |
+| `validate_csv`                | `validator.validar_csv` (con `filas_esperadas` opcional).         |
+| `convert_pdf_to_csv`          | Orquestación en `api/index.py::_procesar`.                        |
+
+## Diferencias **intencionadas** sobre el script base
+
+1. **Plantilla solo en últimas páginas**, no en todo el texto:
+   reduce falsos positivos (regex de plantilla matcheando preguntas).
+2. **Preguntas `parse_ok=False` no se descartan**: el script base las
+   incluía con campos vacíos; aquí se hace lo mismo **y además** se devuelven
+   en `preguntas_no_parseadas` en la respuesta JSON.
+3. **Sinónimos para la columna materia**: `materia`, `bloque`, `tema`,
+   `asignatura` se aceptan en la cabecera y reciben el mismo valor.
+4. **CSV se escribe en memoria** (`bytes`) y se sube a Vercel Blob, no a disco.
+5. **Sin modo plano**: la API solo expone el modo estructurado.
+
+## Cosas que NO se deben tocar sin pedir permiso al usuario
+
+- Cambiar la **cabecera por defecto**.
+- Cambiar el **parser PDF** (sigue siendo PyMuPDF).
+- Quitar la **literalidad estricta** (`csv.QUOTE_ALL`, sin reformulación).
+- Rellenar `correcta` por conocimiento propio del modelo.
+- Añadir OCR sin avisar (rompe el contrato "no OCR en v1").
