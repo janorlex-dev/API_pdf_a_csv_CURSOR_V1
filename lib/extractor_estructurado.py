@@ -30,7 +30,10 @@ _RE_SPLIT_RESERVA = re.compile(r"(?i)\n\s*PREGUNTAS\s+DE\s+RESERVA\b")
 
 _RE_BANNER_RESERVA = re.compile(r"(?i)\s*PREGUNTAS\s+DE\s+RESERVA\b.*", re.DOTALL)
 
-_RE_OPCION_NORMALIZADA = re.compile(r"(?m)^\s*([abcdABCD])\s*[\.\)]\s*")
+# a) / a. / a.- (exámenes UNED común)
+_RE_OPCION_NORMALIZADA = re.compile(
+    r"(?m)^\s*([abcdABCD])\s*(?:\.\-|[\.\)]|\))\s*"
+)
 _RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s+")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
 _RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*$")
@@ -47,7 +50,7 @@ _RE_CORTE_PLANTILLA = re.compile(
 
 
 def _normalizar_opciones(texto: str) -> str:
-    """Convierte 'a)', 'A.', etc., a '\\na) ' uniforme."""
+    """Convierte 'a)', 'a.', 'a.-', etc., a '\\na) ' uniforme."""
     return _RE_OPCION_NORMALIZADA.sub(
         lambda m: f"\n{m.group(1).lower()}) ",
         texto,
@@ -166,7 +169,8 @@ def _renumerar_reservas(
 
 
 def _parsear_texto_preguntas(texto: str) -> list[Pregunta]:
-    """Parsea un bloque de texto ya normalizado (sin banner de reserva mezclado)."""
+    """Parsea un bloque de texto (sin banner de reserva mezclado)."""
+    texto = _normalizar_opciones(texto)
     inicios = list(_RE_INICIO_PREGUNTA.finditer(texto))
     if not inicios:
         return []

@@ -54,6 +54,9 @@ def test_anulada_sin_punto() -> None:
     out = _parsear_texto_preguntas(texto)
     assert len(out) == 1
     assert out[0].anulada is True
+
+
+def test_bloque_reserva_no_contamina_opcion() -> None:
     texto = """
 1.- Pregunta principal:
 a) op a
@@ -76,3 +79,27 @@ d) rd
     )
     assert reservas[0].numero == "2"
     assert reservas[0].enunciado == "Reserva uno:"
+
+
+def test_opciones_formato_guion() -> None:
+    """Formato habitual en Comun: a.- b.- c.- d.-"""
+    texto = """
+5.- Montaña, abogada, está negociando con su compañero Simón:
+a.- Sí, porque está obedeciendo las indicaciones de su cliente.
+b.- Sí, porque está próxima la posible prescripción de la acción.
+c.- No, porque debe comunicarse el cese de las negociaciones al letrado contrario antes de demandar.
+d.- No, porque en este caso la intervención del Letrado no es preceptiva.
+6.- Otra pregunta:
+a) op a
+b) op b
+c) op c
+d) op d
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert out[0].numero == "5"
+    assert out[0].parse_ok is True
+    assert "Montaña" in out[0].enunciado
+    assert "obedeciendo" in out[0].a
+    assert "prescripción" in out[0].b
+    assert "cese de las negociaciones" in out[0].c
+    assert "Letrado no es preceptiva" in out[0].d
