@@ -14,7 +14,8 @@ _RE_SOLO_NUM_PAGINA = re.compile(r"^\d{1,3}$")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
 _RE_CORTE_PLANTILLA = re.compile(
     r"(?i)\n\s*("
-    r"JUNIO|SEPT|SEPTIEMBRE|SOLUCION|PLANTILLA|RESPUESTAS|"
+    r"(?:JUNIO|SEPTIEMBRE|SEPT)\s+\d{4}|"
+    r"SOLUCION|PLANTILLA|RESPUESTAS|"
     r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
     r"PENAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
     r"PENITENCIARIO\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"

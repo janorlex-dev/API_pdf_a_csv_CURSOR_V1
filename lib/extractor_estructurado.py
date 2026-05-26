@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .pdf_parser import PaginaPDF, texto_para_preguntas
+from .pdf_parser import PaginaPDF, _RE_CORTE_PLANTILLA, texto_para_preguntas
 
 
 @dataclass
@@ -18,19 +18,15 @@ class Pregunta:
     parse_ok: bool = True
 
 
-_RE_INICIO_PREGUNTA = re.compile(
-    r"(?m)^\s*(?P<num>\d{1,3})\s*(?:\.-|[\.\-\u2013:]|\))\s*"
-)
+# Marca de pregunta en exámenes UNED: ``5.-`` (no confunde con 1.200 ni fechas).
+_RE_CANDIDATO_PREGUNTA = re.compile(r"(?m)^\s*(?P<num>\d{1,3})\s*\.-\s*")
 
-_RE_PREFIJO_NUMERO = re.compile(
-    r"^\s*(?P<num>\d{1,3})\s*(?:\.-|[\.\-\u2013:]|\))\s*"
-)
+_RE_PREFIJO_NUMERO = re.compile(r"^\s*(?P<num>\d{1,3})\s*(?:\.-\s*|\.\s+)")
 
 _RE_SPLIT_RESERVA = re.compile(r"(?i)\n\s*PREGUNTAS\s+DE\s+RESERVA\b")
 
 _RE_BANNER_RESERVA = re.compile(r"(?i)\s*PREGUNTAS\s+DE\s+RESERVA\b.*", re.DOTALL)
 
-# a) / a. / a.- (exámenes UNED común)
 _RE_OPCION_NORMALIZADA = re.compile(
     r"(?m)^\s*([abcdABCD])\s*(?:\.\-|[\.\)]|\))\s*"
 )
@@ -38,15 +34,6 @@ _RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s+")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
 _RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*$")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
-_RE_CORTE_PLANTILLA = re.compile(
-    r"(?i)\n\s*("
-    r"JUNIO|SEPT|SEPTIEMBRE|SOLUCION|PLANTILLA|RESPUESTAS|"
-    r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"PENAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"PENITENCIARIO\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"LABORAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?"
-    r")\b"
-)
 
 
 def _normalizar_opciones(texto: str) -> str:
@@ -88,12 +75,7 @@ def _es_anulada(texto: str) -> bool:
     t = texto.strip()
     if _RE_ENUNCIADO_ANULADA.match(t):
         return True
-    sin_num = re.sub(
-        r"^\d{1,3}\s*(?:\.-|[\.\-\u2013:]|\))\s*",
-        "",
-        t,
-        flags=re.IGNORECASE,
-    ).strip()
+    sin_num = re.sub(r"^\d{1,3}\s*\.-\s*", "", t, flags=re.IGNORECASE).strip()
     return bool(_RE_ENUNCIADO_ANULADA.match(sin_num))
 
 
@@ -112,7 +94,7 @@ def _pregunta_anulada(numero: str, bloque: str, enunciado: str) -> Pregunta:
 
 
 def _puntuar(p: Pregunta) -> tuple[int, int, int]:
-    """Mayor puntuación = pregunta más completa (para deduplicar)."""
+    """Mayor puntuación = pregunta más completa (para deduplicar en dos columnas)."""
     opts = sum(1 for o in (p.a, p.b, p.c, p.d) if o.strip())
     return (
         1 if p.parse_ok else 0,
@@ -168,80 +150,107 @@ def _renumerar_reservas(
     return renumeradas
 
 
+def _bloques_secuenciales(texto: str) -> list[tuple[str, int, int]]:
+    """Delimita preguntas en orden 1, 2, 3… ignorando números fuera de secuencia."""
+    candidatos = list(_RE_CANDIDATO_PREGUNTA.finditer(texto))
+    if not candidatos:
+        return []
+
+    esperado = int(candidatos[0].group("num").lstrip("0") or candidatos[0].group("num"))
+    aceptados: list[re.Match[str]] = []
+    buscar_desde = 0
+
+    while buscar_desde < len(candidatos):
+        encontrado: re.Match[str] | None = None
+        for j in range(buscar_desde, len(candidatos)):
+            n = int(
+                candidatos[j].group("num").lstrip("0") or candidatos[j].group("num")
+            )
+            if n < esperado:
+                continue
+            if n > esperado:
+                continue
+            encontrado = candidatos[j]
+            buscar_desde = j + 1
+            break
+        if encontrado is None:
+            break
+        aceptados.append(encontrado)
+        esperado += 1
+
+    bloques: list[tuple[str, int, int]] = []
+    for i, m in enumerate(aceptados):
+        numero = m.group("num").lstrip("0") or m.group("num")
+        inicio = m.end()
+        fin = aceptados[i + 1].start() if i + 1 < len(aceptados) else len(texto)
+        bloques.append((numero, inicio, fin))
+    return bloques
+
+
+def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
+    """Parsea enunciado + opciones de un bloque ya delimitado."""
+    bloque = _RE_CORTE_PLANTILLA.split(bloque)[0].strip()
+    if not bloque.strip():
+        return None
+
+    if _es_anulada(bloque):
+        return _pregunta_anulada(numero, bloque, bloque)
+
+    opt_iter = list(_RE_OPCION_BUSCAR.finditer("\n" + bloque))
+    if len(opt_iter) < 4:
+        enunciado_crudo = _limpiar_fragmento(bloque)
+        if not enunciado_crudo.strip():
+            return None
+        if _es_anulada(enunciado_crudo):
+            return _pregunta_anulada(numero, bloque, enunciado_crudo)
+        return Pregunta(
+            numero=numero,
+            enunciado=quitar_prefijo_numero(numero, enunciado_crudo),
+            a="",
+            b="",
+            c="",
+            d="",
+            anulada=False,
+            parse_ok=False,
+        )
+
+    bloque2 = "\n" + bloque
+    enunciado = _limpiar_fragmento(bloque2[: opt_iter[0].start()].strip())
+    enunciado = quitar_prefijo_numero(numero, enunciado)
+
+    if _es_anulada(enunciado) or _es_anulada(bloque):
+        return _pregunta_anulada(numero, bloque, enunciado)
+
+    opciones: dict[str, str] = {}
+    for j, om in enumerate(opt_iter[:4]):
+        letra = om.group(1)
+        inicio = om.end()
+        fin = opt_iter[j + 1].start() if j + 1 < 4 else len(bloque2)
+        opciones[letra] = _limpiar_fragmento(bloque2[inicio:fin])
+
+    if _es_anulada(enunciado):
+        return _pregunta_anulada(numero, bloque, enunciado)
+
+    return Pregunta(
+        numero=numero,
+        enunciado=enunciado,
+        a=opciones.get("a", ""),
+        b=opciones.get("b", ""),
+        c=opciones.get("c", ""),
+        d=opciones.get("d", ""),
+        anulada=False,
+        parse_ok=bool(enunciado.strip()),
+    )
+
+
 def _parsear_texto_preguntas(texto: str) -> list[Pregunta]:
     """Parsea un bloque de texto (sin banner de reserva mezclado)."""
     texto = _normalizar_opciones(texto)
-    inicios = list(_RE_INICIO_PREGUNTA.finditer(texto))
-    if not inicios:
-        return []
-
     preguntas: list[Pregunta] = []
-    for i, m in enumerate(inicios):
-        numero = m.group("num").lstrip("0") or m.group("num")
-        bloque_inicio = m.end()
-        bloque_fin = inicios[i + 1].start() if i + 1 < len(inicios) else len(texto)
-        bloque = texto[bloque_inicio:bloque_fin].strip()
-        bloque = _RE_CORTE_PLANTILLA.split(bloque)[0].strip()
-
-        if _es_anulada(bloque):
-            preguntas.append(_pregunta_anulada(numero, bloque, bloque))
-            continue
-
-        opt_iter = list(_RE_OPCION_BUSCAR.finditer("\n" + bloque))
-        if len(opt_iter) < 4:
-            enunciado_crudo = _limpiar_fragmento(bloque)
-            if not enunciado_crudo.strip():
-                continue
-            if _es_anulada(enunciado_crudo):
-                preguntas.append(_pregunta_anulada(numero, bloque, enunciado_crudo))
-                continue
-            preguntas.append(
-                Pregunta(
-                    numero=numero,
-                    enunciado=quitar_prefijo_numero(numero, enunciado_crudo),
-                    a="",
-                    b="",
-                    c="",
-                    d="",
-                    anulada=False,
-                    parse_ok=False,
-                )
-            )
-            continue
-
-        bloque2 = "\n" + bloque
-        enunciado = _limpiar_fragmento(bloque2[: opt_iter[0].start()].strip())
-        enunciado = quitar_prefijo_numero(numero, enunciado)
-
-        if _es_anulada(enunciado) or _es_anulada(bloque):
-            preguntas.append(_pregunta_anulada(numero, bloque, enunciado))
-            continue
-
-        opciones: dict[str, str] = {}
-        for j, om in enumerate(opt_iter[:4]):
-            letra = om.group(1)
-            inicio = om.end()
-            fin = opt_iter[j + 1].start() if j + 1 < 4 else len(bloque2)
-            opciones[letra] = _limpiar_fragmento(bloque2[inicio:fin])
-
-        anulada = _es_anulada(enunciado)
-        if anulada:
-            preguntas.append(_pregunta_anulada(numero, bloque, enunciado))
-            continue
-
-        preguntas.append(
-            Pregunta(
-                numero=numero,
-                enunciado=enunciado,
-                a=opciones.get("a", ""),
-                b=opciones.get("b", ""),
-                c=opciones.get("c", ""),
-                d=opciones.get("d", ""),
-                anulada=False,
-                parse_ok=bool(enunciado.strip()),
-            )
-        )
-
+    for numero, inicio, fin in _bloques_secuenciales(texto):
+        parsed = _parsear_bloque(numero, texto[inicio:fin].strip())
+        if parsed is not None:
+            preguntas.append(parsed)
     return preguntas
 
 

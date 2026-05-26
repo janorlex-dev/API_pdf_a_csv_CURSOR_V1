@@ -81,6 +81,27 @@ d) rd
     assert reservas[0].enunciado == "Reserva uno:"
 
 
+def test_secuencial_ignora_numeros_fuera_de_orden() -> None:
+    """Solo acepta 1, 2, 3…; ignora marcas fuera de secuencia."""
+    texto = """
+1.- Primera:
+a) a
+b) b
+c) c
+d) d
+99.- Falso positivo
+2.- Segunda:
+a) a
+b) b
+c) c
+d) d
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert [p.numero for p in out] == ["1", "2"]
+    assert out[0].enunciado.startswith("Primera")
+    assert out[1].enunciado.startswith("Segunda")
+
+
 def test_opciones_formato_guion() -> None:
     """Formato habitual en Comun: a.- b.- c.- d.-"""
     texto = """
@@ -103,3 +124,59 @@ d) op d
     assert "prescripción" in out[0].b
     assert "cese de las negociaciones" in out[0].c
     assert "Letrado no es preceptiva" in out[0].d
+
+
+def test_no_confunde_importe_con_pregunta() -> None:
+    """1.200 euros no debe cortar la pregunta 5."""
+    texto = """
+5.- Montaña, abogada, está negociando con su compañero Simón el cumplimiento de un
+contrato de compraventa entre clientes de ambos y en concreto el pago de la cantidad de
+1.200 euros. Las negociaciones se prolongan intentando evitar el juicio, pero Montaña
+sospecha que el ánimo de su compañero es dilatorio. El ejercicio de la acción de
+reclamación prescribe en breve por lo que el cliente de Montaña le ordena presentar la
+demanda, y ella así lo hace sin previo aviso a Simón ¿es correcta la actuación de
+Montaña?:
+a.- Sí, porque está obedeciendo las indicaciones de su cliente.
+b.- Sí, porque está próxima la posible prescripción de la acción.
+c.- No, porque debe comunicarse el cese de las negociaciones al letrado contrario antes de demandar.
+d.- No, porque en este caso la intervención del Letrado no es preceptiva y la demanda la presenta el
+cliente a su nombre.
+6.- Siguiente pregunta:
+a.- op a
+b.- op b
+c.- op c
+d.- op d
+"""
+    out = _parsear_texto_preguntas(texto)
+    q5 = next(p for p in out if p.numero == "5")
+    assert q5.parse_ok is True
+    assert "1.200 euros" in q5.enunciado
+    assert "Montaña?:" in q5.enunciado.replace("\n", " ")
+    assert "obedeciendo" in q5.a
+
+
+def test_no_confunde_fecha_con_pregunta() -> None:
+    """15 de septiembre / 1 de diciembre no deben cortar la pregunta 22."""
+    texto = """
+22.- Iker, incorporado como abogado al colegio de abogados de Zaragoza el 15 de
+septiembre de 2018, quiere votar para elegir al nuevo Decano de su colegio en las
+elecciones convocadas el 1 de diciembre de 2018. ¿Puede Iker votar en las elecciones al
+Decanato conforme a lo que dispone el Estatuto General de la Abogacía?:
+a.- No, porque los colegiados no pueden participar en las primeras elecciones a Decanato que se
+convoquen tras su incorporación al Colegio.
+b.- No, porque no lleva tres meses aún colegiado al convocarse las elecciones.
+c.- Sí, puede participar como elector desde el mismo día de la colegiación.
+d.- Sí, puede participar como elector porque lleva más de un mes colegiado al convocarse las
+elecciones.
+23.- Otra:
+a.- op a
+b.- op b
+c.- op c
+d.- op d
+"""
+    out = _parsear_texto_preguntas(texto)
+    q22 = next(p for p in out if p.numero == "22")
+    assert q22.parse_ok is True
+    assert "septiembre de 2018" in q22.enunciado
+    assert "diciembre de 2018" in q22.enunciado
+    assert "tres meses" in q22.b
