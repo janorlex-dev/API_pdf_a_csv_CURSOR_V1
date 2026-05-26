@@ -19,12 +19,21 @@ class Pregunta:
 
 
 _RE_INICIO_PREGUNTA = re.compile(
-    r"(?m)^\s*(?P<num>\d{1,3})\s*(?:\.-|[\.\-\u2013]|\))\s*"
+    r"(?m)^\s*(?P<num>\d{1,3})\s*(?:\.-|[\.\-\u2013:]|\))\s*"
 )
+
+_RE_PREFIJO_NUMERO = re.compile(
+    r"^\s*(?P<num>\d{1,3})\s*(?:\.-|[\.\-\u2013:]|\))\s*"
+)
+
+_RE_SPLIT_RESERVA = re.compile(r"(?i)\n\s*PREGUNTAS\s+DE\s+RESERVA\b")
+
+_RE_BANNER_RESERVA = re.compile(r"(?i)\s*PREGUNTAS\s+DE\s+RESERVA\b.*", re.DOTALL)
 
 _RE_OPCION_NORMALIZADA = re.compile(r"(?m)^\s*([abcdABCD])\s*[\.\)]\s*")
 _RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s+")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
+_RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*$")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
 _RE_CORTE_PLANTILLA = re.compile(
     r"(?i)\n\s*("
@@ -48,21 +57,55 @@ def _normalizar_opciones(texto: str) -> str:
 def _limpiar_fragmento(texto: str) -> str:
     """Quita restos de salto de página, números sueltos y letras huérfanas."""
     texto = _RE_MARCADOR_PAGINA.sub("", texto)
+    texto = _RE_BANNER_RESERVA.sub("", texto)
     texto = re.sub(r"(?m)^\s*\d{1,3}\s*$", "", texto)
     texto = re.sub(r"(?m)\n\s*[abcdABCD]\s*$", "", texto)
     texto = re.sub(r"\n{3,}", "\n\n", texto)
     return texto.strip()
 
 
-def _prefijo_enunciado(numero: str, enunciado: str) -> str:
-    """Mantiene el prefijo literal ``N.-`` como en el PDF cuando falta."""
+def quitar_prefijo_numero(numero: str, enunciado: str) -> str:
+    """Quita ``N.-`` / ``N.`` del enunciado si la columna ``numero`` va aparte."""
     if not enunciado:
         return enunciado
-    prefijo = f"{numero}.-"
-    if enunciado.startswith(prefijo) or enunciado.startswith(f"{numero}."):
-        return enunciado
-    resto = re.sub(r"^[\-\u2013\.\)\s]+", "", enunciado)
-    return f"{prefijo} {resto}"
+    m = _RE_PREFIJO_NUMERO.match(enunciado)
+    if m and (m.group("num").lstrip("0") or m.group("num")) == (
+        numero.lstrip("0") or numero
+    ):
+        return enunciado[m.end() :].strip()
+    return enunciado.strip()
+
+
+def _es_anulada(texto: str) -> bool:
+    """Detecta pregunta anulada (solo ``ANULADA`` o ``PREGUNTA ANULADA``)."""
+    if not texto or not texto.strip():
+        return False
+    if _RE_PALABRA_ANULADA.search(texto):
+        return True
+    t = texto.strip()
+    if _RE_ENUNCIADO_ANULADA.match(t):
+        return True
+    sin_num = re.sub(
+        r"^\d{1,3}\s*(?:\.-|[\.\-\u2013:]|\))\s*",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    ).strip()
+    return bool(_RE_ENUNCIADO_ANULADA.match(sin_num))
+
+
+def _pregunta_anulada(numero: str, bloque: str, enunciado: str) -> Pregunta:
+    """Fila de pregunta anulada: enunciado corto y opciones con un espacio."""
+    return Pregunta(
+        numero=numero,
+        enunciado="ANULADA.",
+        a=" ",
+        b=" ",
+        c=" ",
+        d=" ",
+        anulada=True,
+        parse_ok=True,
+    )
 
 
 def _puntuar(p: Pregunta) -> tuple[int, int, int]:
@@ -108,18 +151,22 @@ def filtrar_preguntas_numeradas(
     return filtradas
 
 
-def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
-    """Detecta y parsea preguntas tipo test del PDF."""
-    if not paginas:
-        return []
+def _renumerar_reservas(
+    reservas: list[Pregunta],
+    max_principal: int,
+) -> list[Pregunta]:
+    """Si el bloque de reserva vuelve a numerar desde 1, continúa tras la última principal."""
+    renumeradas: list[Pregunta] = []
+    for p in reservas:
+        n = int(p.numero)
+        if max_principal > 0 and n <= max_principal:
+            p.numero = str(max_principal + n)
+        renumeradas.append(p)
+    return renumeradas
 
-    texto = texto_para_preguntas(paginas)
-    if not texto:
-        return []
 
-    texto = _RE_MARCADOR_PAGINA.sub("\n", texto)
-    texto = _normalizar_opciones(texto)
-
+def _parsear_texto_preguntas(texto: str) -> list[Pregunta]:
+    """Parsea un bloque de texto ya normalizado (sin banner de reserva mezclado)."""
     inicios = list(_RE_INICIO_PREGUNTA.finditer(texto))
     if not inicios:
         return []
@@ -132,18 +179,27 @@ def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
         bloque = texto[bloque_inicio:bloque_fin].strip()
         bloque = _RE_CORTE_PLANTILLA.split(bloque)[0].strip()
 
+        if _es_anulada(bloque):
+            preguntas.append(_pregunta_anulada(numero, bloque, bloque))
+            continue
+
         opt_iter = list(_RE_OPCION_BUSCAR.finditer("\n" + bloque))
         if len(opt_iter) < 4:
             enunciado_crudo = _limpiar_fragmento(bloque)
+            if not enunciado_crudo.strip():
+                continue
+            if _es_anulada(enunciado_crudo):
+                preguntas.append(_pregunta_anulada(numero, bloque, enunciado_crudo))
+                continue
             preguntas.append(
                 Pregunta(
                     numero=numero,
-                    enunciado=_prefijo_enunciado(numero, enunciado_crudo),
+                    enunciado=quitar_prefijo_numero(numero, enunciado_crudo),
                     a="",
                     b="",
                     c="",
                     d="",
-                    anulada=bool(_RE_PALABRA_ANULADA.search(bloque)),
+                    anulada=False,
                     parse_ok=False,
                 )
             )
@@ -151,7 +207,11 @@ def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
 
         bloque2 = "\n" + bloque
         enunciado = _limpiar_fragmento(bloque2[: opt_iter[0].start()].strip())
-        enunciado = _prefijo_enunciado(numero, enunciado)
+        enunciado = quitar_prefijo_numero(numero, enunciado)
+
+        if _es_anulada(enunciado) or _es_anulada(bloque):
+            preguntas.append(_pregunta_anulada(numero, bloque, enunciado))
+            continue
 
         opciones: dict[str, str] = {}
         for j, om in enumerate(opt_iter[:4]):
@@ -160,9 +220,10 @@ def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
             fin = opt_iter[j + 1].start() if j + 1 < 4 else len(bloque2)
             opciones[letra] = _limpiar_fragmento(bloque2[inicio:fin])
 
-        anulada = bool(_RE_PALABRA_ANULADA.search(enunciado))
-        if anulada and not enunciado.upper().startswith("PREGUNTA ANULADA"):
-            enunciado = f"PREGUNTA ANULADA. {enunciado}"
+        anulada = _es_anulada(enunciado)
+        if anulada:
+            preguntas.append(_pregunta_anulada(numero, bloque, enunciado))
+            continue
 
         preguntas.append(
             Pregunta(
@@ -172,12 +233,40 @@ def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
                 b=opciones.get("b", ""),
                 c=opciones.get("c", ""),
                 d=opciones.get("d", ""),
-                anulada=anulada,
+                anulada=False,
                 parse_ok=bool(enunciado.strip()),
             )
         )
 
-    return _deduplicar(preguntas)
+    return preguntas
+
+
+def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
+    """Detecta y parsea preguntas tipo test del PDF."""
+    if not paginas:
+        return []
+
+    texto = texto_para_preguntas(paginas)
+    if not texto:
+        return []
+
+    texto = _RE_MARCADOR_PAGINA.sub("\n", texto)
+    texto = _normalizar_opciones(texto)
+    texto = re.sub(
+        r"(?i)(\bPREGUNTAS\s+DE\s+RESERVA\b)",
+        r"\n\1\n",
+        texto,
+    )
+
+    partes = _RE_SPLIT_RESERVA.split(texto, maxsplit=1)
+    principales = _parsear_texto_preguntas(partes[0])
+    if len(partes) == 1:
+        return _deduplicar(principales)
+
+    max_principal = max((int(p.numero) for p in principales), default=0)
+    reservas = _parsear_texto_preguntas(partes[1])
+    reservas = _renumerar_reservas(reservas, max_principal)
+    return _deduplicar(principales + reservas)
 
 
 def extraer_preguntas_filtradas(

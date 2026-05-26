@@ -1,0 +1,83 @@
+pregunta a chatgpt ¿ como haces para que no haya saltos de linea en las preguntas y respuestas? 
+
+
+Uso una normalización final de texto antes de meter cada campo en el CSV.
+
+La idea es: dentro de cada pregunta/opción sustituyo los saltos de línea por espacios, pero sin cambiar el contenido. Así el CSV queda en una sola línea por pregunta.
+
+import re
+
+def limpiar_campo(texto):
+    """
+    Limpia un campo del CSV sin resumir ni reformular:
+    - elimina saltos de línea internos;
+    - convierte varios espacios en uno;
+    - mantiene comas, puntos, punto y coma, signos y comillas;
+    - deja el texto en una sola línea.
+    """
+    if texto is None:
+        return ""
+
+    texto = str(texto)
+
+    # Unificar saltos de línea
+    texto = texto.replace("\r\n", "\n").replace("\r", "\n")
+
+    # Sustituir saltos de línea por espacios
+    texto = re.sub(r"\s*\n\s*", " ", texto)
+
+    # Reducir espacios múltiples
+    texto = re.sub(r"[ \t]{2,}", " ", texto)
+
+    # Quitar espacios al principio y al final
+    texto = texto.strip()
+
+    return texto
+
+Luego lo aplico a cada campo antes de escribir el CSV:
+
+fila = [
+    limpiar_campo(numero),
+    limpiar_campo(pregunta),
+    limpiar_campo(a),
+    limpiar_campo(b),
+    limpiar_campo(c),
+    limpiar_campo(d),
+    limpiar_campo(correcta),
+    limpiar_campo(bloque),
+]
+
+Y después escribo con csv.writer:
+
+import csv
+
+with open("salida.csv", "w", newline="", encoding="utf-8-sig") as f:
+    writer = csv.writer(
+        f,
+        delimiter=",",
+        quotechar='"',
+        quoting=csv.QUOTE_ALL,
+        lineterminator="\n"
+    )
+
+    writer.writerow(["numero", "pregunta", "a", "b", "c", "d", "correcta", "bloque"])
+    writer.writerows(rows)
+
+La clave está en esta línea:
+
+texto = re.sub(r"\s*\n\s*", " ", texto)
+
+Convierte esto:
+
+El abogado recibe una comunicación
+de otro compañero.
+
+en esto:
+
+El abogado recibe una comunicación de otro compañero.
+
+Y el CSV queda así:
+
+"1","El abogado recibe una comunicación de otro compañero.","Sí.","No.","Depende.","Ninguna.","B","comun"
+
+Importante: esto no acorta ni reformula. Solo elimina el salto físico de línea que mete el PDF por maquetación.
