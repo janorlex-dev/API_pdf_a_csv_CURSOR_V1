@@ -5,13 +5,14 @@ from typing import Optional
 
 from .pdf_parser import PaginaPDF, _RE_CORTE_PLANTILLA
 
-
+# Línea: 1 B | 1.B | 1-B | 1: A
 _RE_PAREJA_LINEA = re.compile(
     r"(?m)^\s*(\d{1,3})\s*[\.\-:\)]?\s*([A-Da-d](?:\?)?|ANULADA|anulada|/)\s*$"
 )
 
+# Inline: 1.B  26.B | 1 B  2 D (dos columnas en la misma línea)
 _RE_PAREJA_INLINE = re.compile(
-    r"\b(\d{1,3})\s*[\.\-:\)]\s*([A-Da-d](?:\?)?|ANULADA|anulada|/)\b"
+    r"(?<!\d)(\d{1,3})\s*[\.\-:\)]\s*([A-Da-d](?:\?)?|ANULADA|anulada|/)"
 )
 
 
@@ -26,10 +27,12 @@ def _normalizar(letra: str) -> str:
 
 
 def _parejas_en_texto(texto: str) -> dict[str, str]:
-    """Extrae todas las parejas numero->letra de un bloque de texto.
+    """Extrae parejas numero->letra de un bloque de plantilla.
 
-    Prioriza coincidencias por línea (más fiables) y luego rellena con
-    coincidencias inline para plantillas en formato '1 B  2 D  3 A'.
+    Soporta formatos habituales en exámenes UNED / abogacía:
+    - ``1 B`` (una por línea)
+    - ``1.B`` o ``1.B          26.B`` (dos columnas)
+    - ``1 B  2 D  3 A`` (inline)
     """
     parejas: dict[str, str] = {}
     for numero, letra in _RE_PAREJA_LINEA.findall(texto):
@@ -41,11 +44,21 @@ def _parejas_en_texto(texto: str) -> dict[str, str]:
     return parejas
 
 
+def parsear_respuestas_texto(texto: str) -> dict[str, str]:
+    """Parsea plantilla manual pegada como texto (no JSON).
+
+    Ignora cabeceras como ``COMUN 2019_2`` y líneas sin pareja número-letra.
+    """
+    if not texto or not texto.strip():
+        return {}
+    return _parejas_en_texto(texto)
+
+
 def extraer_plantilla(paginas: list[PaginaPDF]) -> dict[str, str]:
     """Busca la plantilla de respuestas en las últimas páginas del PDF.
 
-    Recorre desde la última hacia atrás y devuelve el mapa {numero: letra}
-    de la primera página que tenga al menos 5 parejas. Conserva sufijo '?'
+    Recorre desde la última hoja hacia atrás y devuelve el mapa {numero: letra}
+    de la primera página con al menos 5 parejas. Conserva sufijo '?'
     y marca 'anulada' literal cuando la plantilla lo indica.
     """
     if not paginas:

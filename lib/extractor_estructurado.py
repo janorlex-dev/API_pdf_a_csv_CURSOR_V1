@@ -27,7 +27,13 @@ _RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s+")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
 _RE_CORTE_PLANTILLA = re.compile(
-    r"(?i)\n\s*(JUNIO|SEPT|SEPTIEMBRE|SOLUCION|PLANTILLA|RESPUESTAS)\b"
+    r"(?i)\n\s*("
+    r"JUNIO|SEPT|SEPTIEMBRE|SOLUCION|PLANTILLA|RESPUESTAS|"
+    r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
+    r"PENAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
+    r"PENITENCIARIO\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
+    r"LABORAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?"
+    r")\b"
 )
 
 
@@ -72,15 +78,34 @@ def _puntuar(p: Pregunta) -> tuple[int, int, int]:
 def _deduplicar(preguntas: list[Pregunta]) -> list[Pregunta]:
     """Si el PDF de dos columnas genera el mismo número dos veces, queda la mejor."""
     mejores: dict[str, Pregunta] = {}
-    orden: list[str] = []
     for p in preguntas:
         if p.numero not in mejores:
             mejores[p.numero] = p
-            orden.append(p.numero)
             continue
         if _puntuar(p) > _puntuar(mejores[p.numero]):
             mejores[p.numero] = p
-    return [mejores[n] for n in orden]
+    return sorted(mejores.values(), key=lambda p: int(p.numero))
+
+
+def filtrar_preguntas_numeradas(
+    preguntas: list[Pregunta],
+    filas_esperadas: int | None = None,
+) -> list[Pregunta]:
+    """Conserva solo preguntas con número entero >= 1 (1, 2, 3…).
+
+    Si se indica ``filas_esperadas``, limita al rango 1..N (como el script base).
+    """
+    filtradas: list[Pregunta] = []
+    for p in preguntas:
+        if not p.numero.isdigit():
+            continue
+        n = int(p.numero)
+        if n < 1:
+            continue
+        if filas_esperadas is not None and n > filas_esperadas:
+            continue
+        filtradas.append(p)
+    return filtradas
 
 
 def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
@@ -153,3 +178,11 @@ def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
         )
 
     return _deduplicar(preguntas)
+
+
+def extraer_preguntas_filtradas(
+    paginas: list[PaginaPDF],
+    filas_esperadas: int | None = None,
+) -> list[Pregunta]:
+    """Extrae preguntas numeradas y descarta ruido fuera del rango esperado."""
+    return filtrar_preguntas_numeradas(extraer_preguntas(paginas), filas_esperadas)

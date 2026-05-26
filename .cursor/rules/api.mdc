@@ -24,14 +24,21 @@ alwaysApply: true
 - `503` `BLOB_READ_WRITE_TOKEN` ausente o Blob no responde.
 
 ## Campos del formulario
-- `file` (obligatorio): archivo PDF.
+- `file` (obligatorio): archivo PDF. Cualquier asignatura; debe tener capa de texto.
 - `cabecera` (opcional): string separado por comas. Default desde
   `DEFAULT_HEADER` o `numero,pregunta,a,b,c,d,correcta,materia`.
 - `materia` (opcional): valor fijo para columna materia/bloque/tema/asignatura.
-- `respuestas` (opcional): JSON `{ "1": "a", "2": "b" }`. Override manual.
+- `respuestas` (opcional): override de plantilla si el PDF no trae solucionario
+  al final. Acepta:
+  - JSON: `{ "1": "b", "2": "c" }`
+  - Texto plano: cabecera opcional (`COMUN 2019_2`) + líneas `1.B    26.B`,
+    `1 B`, etc. Cualquier número de parejas número–letra del examen.
+  Si no hay plantilla en el PDF ni en `respuestas`, `correcta` queda vacía.
 - `filas_esperadas` (opcional): entero. Si se aporta, el validador avisa si el
   número de filas útiles no coincide (ej. 27 = 25 + 2 reservas).
 - `n` (solo preview, opcional, 1–50): nº de filas a devolver. Default 5.
+- `num_opciones` (**v2 planificado**, aún no expuesto): `3` o `4`. Para exámenes
+  con tres respuestas (a, b, c) y una correcta. Reservar en diseño; no romper v1.
 
 ## CORS
 - `allow_origins=["*"]` mientras la API sea pública sin auth.

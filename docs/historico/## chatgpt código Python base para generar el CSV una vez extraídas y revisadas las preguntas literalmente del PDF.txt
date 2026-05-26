@@ -1,0 +1,121 @@
+## Este es el código Python base que uso para generar el CSV una vez extraídas y revisadas las preguntas literalmente del PDF:
+
+import csv
+from pathlib import Path
+
+
+def write_csv(rows, output_path, header):
+    """
+    Escribe el CSV con todos los campos entre comillas dobles.
+    rows debe ser una lista de listas.
+    """
+    with open(output_path, "w", newline="", encoding="utf-8-sig") as f:
+        writer = csv.writer(
+            f,
+            delimiter=",",
+            quotechar='"',
+            quoting=csv.QUOTE_ALL,
+            lineterminator="\n"
+        )
+        writer.writerow(header)
+        writer.writerows(rows)
+
+
+def validate_csv(path, expected_columns, expected_rows=None):
+    """
+    Valida:
+    - número de columnas
+    - número de filas útiles
+    - cabeceras repetidas
+    - filas vacías
+    """
+    errors = []
+
+    with open(path, "r", encoding="utf-8-sig", newline="") as f:
+        rows = list(csv.reader(f))
+
+    if not rows:
+        return ["CSV vacío"]
+
+    header = rows[0]
+    data_rows = rows[1:]
+
+    if len(header) != expected_columns:
+        errors.append(
+            f"Cabecera con {len(header)} columnas; esperadas {expected_columns}"
+        )
+
+    if expected_rows is not None and len(data_rows) != expected_rows:
+        errors.append(
+            f"Filas útiles: {len(data_rows)}; esperadas {expected_rows}"
+        )
+
+    for line_number, row in enumerate(data_rows, start=2):
+        if row == header:
+            errors.append(f"Cabecera repetida en línea {line_number}")
+
+        if not any(cell.strip() for cell in row):
+            errors.append(f"Fila vacía en línea {line_number}")
+
+        if len(row) != expected_columns:
+            errors.append(
+                f"Fila {line_number} con {len(row)} columnas; esperadas {expected_columns}"
+            )
+
+    return errors
+
+
+# =========================
+# EJEMPLO DE USO MANUAL
+# =========================
+
+header = [
+    "numero",
+    "pregunta",
+    "a",
+    "b",
+    "c",
+    "d",
+    "correcta",
+    "bloque"
+]
+
+rows = [
+    [
+        "1",
+        "Texto literal completo de la pregunta 1.",
+        "Texto literal de la opción a.",
+        "Texto literal de la opción b.",
+        "Texto literal de la opción c.",
+        "Texto literal de la opción d.",
+        "B",
+        "comun"
+    ],
+    [
+        "2",
+        "Texto literal completo de la pregunta 2.",
+        "Texto literal de la opción a.",
+        "Texto literal de la opción b.",
+        "Texto literal de la opción c.",
+        "Texto literal de la opción d.",
+        " ",
+        "comun"
+    ],
+]
+
+output_path = "/mnt/data/examen_convertido.csv"
+
+write_csv(rows, output_path, header)
+
+errors = validate_csv(
+    output_path,
+    expected_columns=8,
+    expected_rows=len(rows)
+)
+
+if errors:
+    print("ERRORES:")
+    for error in errors:
+        print("-", error)
+else:
+    print("CSV validado correctamente")

@@ -1,13 +1,16 @@
 # PDF a CSV API
 
-API para convertir exámenes en PDF a CSV de forma **literal**, pensada para oposiciones (ej. abogacía).
+API para convertir exámenes en PDF a CSV de forma **literal**. Sirve para **cualquier asignatura**
+y **cualquier número de preguntas** (20+2 reservas, 25+2, 50 del común de abogacía, etc.),
+siempre que el PDF tenga capa de texto y el formato tipo test esperado.
 
 Stack: **Python 3.12 + FastAPI + PyMuPDF (fitz)** desplegado en **Vercel Serverless**. Almacenamiento de los CSV en **Vercel Blob** con URL no listable (token aleatorio en la ruta).
 
 - Cabecera por defecto: `numero,pregunta,a,b,c,d,correcta,materia` (configurable por petición).
-- La columna `correcta` se extrae **automáticamente** de la última hoja del PDF; se puede **sobrescribir manualmente** en la misma petición.
-- Preguntas con menos de 4 opciones detectadas **se incluyen** con campos vacíos y se listan en `preguntas_no_parseadas` para revisión humana (nunca se inventan).
-- Web mínima responsive (PC y Android) en la raíz `/`.
+- Extrae **solo preguntas numeradas** (`1.-`, `2.`, …) con enunciado literal y opciones **a, b, c, d** (4 opciones en v1).
+- La columna `correcta` se extrae **automáticamente** de la última hoja del PDF; se puede **aportar manualmente** (JSON o texto tipo `1.B`).
+- Preguntas mal parseadas **se incluyen** con campos vacíos y se listan en `preguntas_no_parseadas` (nunca se inventan).
+- Web mínima responsive (PC y Android) en `/` (redirige a `/index.html`).
 
 ---
 
@@ -48,7 +51,7 @@ Stack: **Python 3.12 + FastAPI + PyMuPDF (fitz)** desplegado en **Vercel Serverl
 ├── .cursor/rules/                  # Reglas Cursor (proyecto, python, api, dominio, script-base)
 ├── requirements.txt
 ├── runtime.txt                     # python-3.12
-├── vercel.json                     # Rewrites /api/* y /docs
+├── vercel.json                     # Rewrite / → index.html
 ├── .env.example
 └── README.md
 ```
@@ -69,7 +72,16 @@ Stack: **Python 3.12 + FastAPI + PyMuPDF (fitz)** desplegado en **Vercel Serverl
 - `file` *(obligatorio)* — el PDF.
 - `cabecera` *(opcional)* — cabecera CSV separada por comas. Ej: `numero,pregunta,a,b,c,d,correcta,bloque`.
 - `materia` *(opcional)* — valor fijo para la columna `materia` / `bloque` / `tema` / `asignatura`. Ej: `comun`, `penal`.
-- `respuestas` *(opcional)* — JSON `{"1":"a","2":"b",...}` para sobrescribir la plantilla detectada.
+- `respuestas` *(opcional)* — plantilla manual si el PDF **no trae solucionario al final**. Acepta:
+  - **JSON**: `{"1":"b","2":"c",...}`
+  - **Texto plano** (como en exámenes UNED/abogacía):
+    ```
+    COMUN 2019_2
+    1.B          26.B
+    2.C          27.B
+    3.D          28.D
+    ```
+    También vale `1 B` (una por línea) o `1.B` sin columnas.
 - `filas_esperadas` *(opcional)* — entero. Si se aporta, el validador avisa si el número de filas útiles no coincide (ej. `27` para 25 preguntas + 2 reservas).
 - `n` *(solo preview, opcional, 1–50)* — número de filas a devolver. Default 5.
 
@@ -225,6 +237,9 @@ En `.cursor/rules/`:
 
 ## Limitaciones y notas
 
+- **v1 — 4 opciones fijas** (a, b, c, d). Roadmap: parámetro `num_opciones=3|4` para exámenes con tres respuestas (aún no implementado).
+- **Formato de pregunta**: debe empezar con número (`1.-`, `2.`, `3)`, …) y opciones `a)`, `b)`, `c)`, `d)`.
+- **PDFs de dos columnas**: extracción con `get_text("text", sort=True)` (Medicina legal, común, etc.).
 - **Sin OCR en v1**: PDFs escaneados como imagen devolverán `422`.
 - **Función Vercel**: máx **60 s** y **1024 MB** de memoria (configurado en `vercel.json`).
 - **Tamaño máx PDF**: 10 MB (variable `MAX_PDF_BYTES`).

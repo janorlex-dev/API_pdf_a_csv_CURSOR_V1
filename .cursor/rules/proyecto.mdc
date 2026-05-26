@@ -9,6 +9,43 @@ alwaysApply: true
 Convertir exámenes en PDF a CSV de forma **literal**, sin resumir ni inventar.
 La API se despliega en **Vercel** con runtime **Python (FastAPI)**.
 
+## Alcance funcional (v1)
+
+La API convierte **cualquier examen tipo test** subido como PDF siempre que cumpla
+el formato esperado. **No está limitada a una asignatura**: el usuario indica
+`materia` / `bloque` / `tema` / `asignatura` en la petición.
+
+### Entrada
+- PDF con **capa de texto seleccionable** (PyMuPDF). Sin OCR en v1.
+- **Cualquier número de preguntas** (1…999): 20+2 reservas, 25+2, 50 del común, etc.
+- Campo opcional `filas_esperadas` para validar el total de filas.
+
+### Extracción (solo bloque de preguntas)
+1. Extraer texto por páginas (`sort=True` para PDFs de dos columnas).
+2. Separar preguntas de plantilla/solucionario (última hoja; corte en JUNIO/COMUN/…).
+3. Detectar **solo** bloques que empiezan con número de pregunta (`1.-`, `2.`, `3)`, …).
+4. Por cada pregunta: enunciado literal + opciones **a, b, c, d** (4 opciones en v1).
+5. Plantilla `correcta`: auto en últimas páginas **o** manual (`respuestas` JSON o texto
+   tipo `1.B`, `1 B`, `1.B    26.B`).
+
+### Salida CSV
+- Cabecera default: `numero,pregunta,a,b,c,d,correcta,materia` (configurable).
+- Literalidad estricta; `csv.QUOTE_ALL`; UTF-8 con BOM.
+
+### Limitaciones v1 (no prometer más de lo implementado)
+- **4 opciones fijas** (a–d). Ver roadmap v2 para exámenes de 3 opciones.
+- Formato fijo de pregunta/opciones (ver `extractor_estructurado.py`).
+- PDFs escaneados, tablas complejas o formatos muy distintos pueden requerir revisión.
+- Preguntas mal parseadas: se incluyen con opciones vacías + `preguntas_no_parseadas`.
+- Nunca inventar enunciados, opciones ni `correcta`.
+
+### Roadmap v2 (reservado, no implementar sin acordar)
+- Campo **`num_opciones`** (3 o 4) en la petición para exámenes con **solo tres
+  respuestas** (a, b, c) y una correcta. Implicará cabecera CSV variable
+  (`numero,pregunta,a,b,c,correcta,materia` vs la actual con `d`) y ajustes en
+  extractor, builder y validador. **Preguntar al usuario** antes de cambiar el
+  esquema por defecto.
+
 ## Estructura
 - `api/index.py` — FastAPI app: `/api/health`, `/api/convert`, `/api/preview`.
 - `lib/` — módulos de dominio:
@@ -23,6 +60,19 @@ La API se despliega en **Vercel** con runtime **Python (FastAPI)**.
 - `docs/base_pdf_a_csv.txt` — script Python de referencia (fuente del diseño).
 - `docs/historico/` — chats previos archivados (no se cargan).
 - `vercel.json`, `requirements.txt`, `runtime.txt`, `.env.example`.
+
+## Reglas Cursor (`.cursor/rules/` — 5 archivos)
+
+| Archivo | Contenido |
+| ------- | --------- |
+| `proyecto.mdc` | Objetivo, alcance v1/v2, estructura, reglas operativas |
+| `pdf-csv-dominio.mdc` | Literalidad, plantilla, reservas, anuladas, alcance universal |
+| `api.mdc` | Endpoints, códigos HTTP, campos del formulario (`respuestas`, `num_opciones` v2) |
+| `python.mdc` | Estilo Python, dependencias, CSV, alcance del código |
+| `script-base.mdc` | Correspondencia con `docs/base_pdf_a_csv.txt`, diferencias intencionadas |
+
+Todos aplican `alwaysApply: true`. El alcance funcional y el roadmap `num_opciones`
+(3\|4) están documentados en los cinco.
 
 ## Reglas operativas
 - **No** crear commits ni push automáticos. El usuario decide cuándo subir a Git.

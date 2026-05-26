@@ -10,6 +10,19 @@ Estas reglas son **vinculantes** para la lógica de extracción y vienen del
 documento `docs/base_pdf_a_csv.txt` (script Python de referencia) y de las
 instrucciones de negocio del usuario.
 
+## Alcance universal de exámenes (con restricciones de formato)
+
+- **Asignatura**: cualquiera; la API no filtra por materia concreta.
+- **Número de preguntas**: cualquiera; incluir reservas si están numeradas en el PDF.
+- **Número de opciones (v1)**: fijo en **4** (a, b, c, d).
+- **Número de opciones (v2, planificado)**: parámetro `num_opciones=3|4` para
+  exámenes con tres respuestas (a, b, c) y una sola correcta. No implementar
+  sin acordar cambio de cabecera CSV y endpoints con el usuario.
+- **Plantilla manual**: si el PDF no trae solucionario al final, el cliente puede
+  pegar la plantilla en `respuestas` (JSON o texto multilínea con pares número–letra).
+- **Objetivo de extracción**: del PDF solo el bloque de preguntas numeradas; excluir
+  plantilla de la última hoja; no volcar solucionario en columnas de enunciado/opciones.
+
 ## Literalidad estricta
 - **No** acortar enunciados.
 - **No** resumir opciones.
@@ -42,8 +55,9 @@ instrucciones de negocio del usuario.
 - No inventar la pregunta sustituta. Si el PDF la cita, se respeta tal cual.
 
 ## Preguntas mal parseadas
-- Si el extractor **no encuentra las 4 opciones** (a, b, c, d) en una pregunta,
-  la fila se incluye con `parse_ok=False` y opciones vacías, **NO** se descarta.
+- Si el extractor **no encuentra el número de opciones esperado** (4 en v1:
+  a, b, c, d; 3 en v2 planificado: a, b, c) en una pregunta, la fila se incluye
+  con `parse_ok=False` y opciones vacías, **NO** se descarta.
 - Esos `numero` se devuelven en `preguntas_no_parseadas` para revisión humana.
 - Nunca rellenar los huecos con texto inventado.
 

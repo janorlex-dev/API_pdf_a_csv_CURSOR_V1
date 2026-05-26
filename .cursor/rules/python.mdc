@@ -31,6 +31,15 @@ alwaysApply: true
 - Siempre `csv.QUOTE_ALL`, `delimiter=","`, `lineterminator="\n"`.
 - Encoding `utf-8-sig` (UTF-8 con BOM) para compatibilidad con Excel.
 - Cabecera explícita en la primera fila, sin filas vacías al final.
+- **v1**: cabecera default con 4 opciones (`a,b,c,d`). **v2 planificado**:
+  parámetro `num_opciones=3|4` y cabecera sin columna `d` cuando sean 3.
+  No hardcodear el 4 en sitios nuevos si se puede parametrizar.
+
+## Alcance del código (recordatorio)
+- Cualquier asignatura y cualquier número de preguntas (1…999).
+- Extracción: solo bloques numerados del PDF; plantilla en últimas páginas o manual.
+- PyMuPDF con `get_text("text", sort=True)` en `pdf_parser` (mejor que el script
+  base plano para PDFs de dos columnas).
 
 ## Pruebas (opcional pero recomendado)
 - Si se añaden tests, usar `pytest` y colocarlos en `tests/`.

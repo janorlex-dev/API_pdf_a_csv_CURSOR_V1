@@ -18,10 +18,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from lib.csv_builder import construir_csv, parsear_cabecera
-from lib.extractor_estructurado import extraer_preguntas
+from lib.extractor_estructurado import extraer_preguntas_filtradas
 from lib.models import ConvertResponse, HealthResponse, PreviewResponse
 from lib.pdf_parser import es_pdf_sin_texto, extraer_paginas
-from lib.plantilla import extraer_plantilla, fusionar_plantillas
+from lib.plantilla import extraer_plantilla, fusionar_plantillas, parsear_respuestas_texto
 from lib.storage import BlobError, subir_csv
 from lib.validator import validar_csv
 
@@ -53,21 +53,38 @@ def _max_bytes() -> int:
 
 
 def _parse_respuestas(respuestas_raw: Optional[str]) -> Optional[dict[str, str]]:
-    if not respuestas_raw:
+    """Acepta JSON ``{"1":"b"}`` o plantilla en texto (``1.B``, ``1 B``, dos columnas)."""
+    if not respuestas_raw or not respuestas_raw.strip():
         return None
-    try:
-        data = json.loads(respuestas_raw)
-    except json.JSONDecodeError as exc:
+
+    texto = respuestas_raw.strip()
+    if texto.startswith("{"):
+        try:
+            data = json.loads(texto)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"El campo 'respuestas' no es JSON válido: {exc}",
+            ) from exc
+        if not isinstance(data, dict):
+            raise HTTPException(
+                status_code=400,
+                detail="El campo 'respuestas' debe ser un objeto {numero: letra}.",
+            )
+        return {
+            str(k).lstrip("0") or str(k): str(v).lower() for k, v in data.items()
+        }
+
+    parejas = parsear_respuestas_texto(texto)
+    if not parejas:
         raise HTTPException(
             status_code=400,
-            detail=f"El campo 'respuestas' no es JSON válido: {exc}",
-        ) from exc
-    if not isinstance(data, dict):
-        raise HTTPException(
-            status_code=400,
-            detail="El campo 'respuestas' debe ser un objeto {numero: letra}.",
+            detail=(
+                "No se reconocieron respuestas en el texto. Use JSON {\"1\":\"b\"} "
+                "o pegue la plantilla del examen (ej. 1.B, 1 B, 1.B    26.B)."
+            ),
         )
-    return {str(k): str(v).lower() for k, v in data.items()}
+    return parejas
 
 
 def _parse_expected_rows(valor: Optional[str]) -> Optional[int]:
@@ -126,7 +143,7 @@ def _procesar(
 
     cabecera = parsear_cabecera(cabecera_raw)
 
-    preguntas = extraer_preguntas(paginas)
+    preguntas = extraer_preguntas_filtradas(paginas, filas_esperadas)
     if not preguntas:
         raise HTTPException(
             status_code=422,

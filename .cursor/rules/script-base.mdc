@@ -14,10 +14,10 @@ comportamiento alineado con sus secciones 6 y 7.
 
 | Función del script base       | Módulo en `lib/`                                                  |
 | ----------------------------- | ----------------------------------------------------------------- |
-| `extract_text_from_pdf`       | `pdf_parser.extraer_paginas` (PyMuPDF, mismo `get_text("text")`). |
-| `clean_text`                  | `pdf_parser._limpiar`.                                            |
-| `parse_answer_key`            | `plantilla.extraer_plantilla` (limitado a últimas páginas).       |
-| `parse_questions_basic`       | `extractor_estructurado.extraer_preguntas`.                       |
+| `extract_text_from_pdf`       | `pdf_parser.extraer_paginas` (PyMuPDF, `get_text("text", sort=True)`). |
+| `clean_text`                  | `pdf_parser._limpiar` + `_quitar_ruido_pagina`.                         |
+| `parse_answer_key`            | `plantilla.extraer_plantilla` + `parsear_respuestas_texto` (manual).   |
+| `parse_questions_basic`       | `extractor_estructurado.extraer_preguntas_filtradas`.                  |
 | `build_rows` + `write_csv`    | `csv_builder.construir_csv`.                                      |
 | `validate_csv`                | `validator.validar_csv` (con `filas_esperadas` opcional).         |
 | `convert_pdf_to_csv`          | Orquestación en `api/index.py::_procesar`.                        |
@@ -33,6 +33,20 @@ comportamiento alineado con sus secciones 6 y 7.
    `asignatura` se aceptan en la cabecera y reciben el mismo valor.
 4. **CSV se escribe en memoria** (`bytes`) y se sube a Vercel Blob, no a disco.
 5. **Sin modo plano**: la API solo expone el modo estructurado.
+6. **`get_text("text", sort=True)`** en `pdf_parser` para orden de lectura en
+   PDFs de dos columnas (el script base usa `get_text("text")` sin sort).
+7. **Plantilla manual en texto** además de JSON (`parsear_respuestas_texto` en
+   `plantilla.py`: formatos `1.B`, `1 B`, dos columnas).
+8. **Solo preguntas numeradas** filtradas y ordenadas 1, 2, 3…
+   (`extraer_preguntas_filtradas`).
+
+## Alcance funcional (alineado con `proyecto.mdc`)
+
+- **Cualquier examen tipo test** y **cualquier asignatura** (campo `materia`).
+- **Cualquier número de preguntas**; reservas incluidas si están numeradas.
+- **v1**: 4 opciones fijas (a–d). **v2 planificado**: `num_opciones=3|4` para
+  exámenes con tres respuestas; implica cambios en extractor, `csv_builder`,
+  validador y API. **Preguntar al usuario** antes de implementar.
 
 ## Cosas que NO se deben tocar sin pedir permiso al usuario
 
