@@ -18,26 +18,39 @@ class Pregunta:
     parse_ok: bool = True
 
 
-# Marca de pregunta en exámenes UNED: ``5.-`` (no confunde con 1.200 ni fechas).
-_RE_CANDIDATO_PREGUNTA = re.compile(r"(?m)^\s*(?P<num>\d{1,3})\s*\.-\s*")
+# Separador tras el número: ``.-`` primero; luego ``. `` (no ``1.200``); guion suelto.
+_SUFFIX_NUMERO = r"(?:\.-|\.(?!\d)\s+|[-–]\s+|\)\s+)"
 
-_RE_PREFIJO_NUMERO = re.compile(r"^\s*(?P<num>\d{1,3})\s*(?:\.-\s*|\.\s+)")
+_RE_CANDIDATO_LINEA = re.compile(
+    rf"(?m)^\s*(?P<num>\d{{1,3}})\s*{_SUFFIX_NUMERO}"
+)
+_RE_CANDIDATO_INLINE = re.compile(
+    r"(?<=\. )"
+    r"(?P<num>\d{1,3})\s*"
+    r"(?:"
+    r"\.-"
+    r"|\.(?!\d)\s+(?=[A-ZÁÉÍÓÚÑ¿""(])"
+    r"|[-–]\s+"
+    r")"
+)
+
+_RE_PREFIJO_NUMERO = re.compile(rf"^\s*(?P<num>\d{{1,3}})\s*{_SUFFIX_NUMERO}")
 
 _RE_SPLIT_RESERVA = re.compile(r"(?i)\n\s*PREGUNTAS\s+DE\s+RESERVA\b")
-
 _RE_BANNER_RESERVA = re.compile(r"(?i)\s*PREGUNTAS\s+DE\s+RESERVA\b.*", re.DOTALL)
 
+# ChatGPT: a) / a.  — ampliado con a.- (Comun)
 _RE_OPCION_NORMALIZADA = re.compile(
     r"(?m)^\s*([abcdABCD])\s*(?:\.\-|[\.\)]|\))\s*"
 )
-_RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s+")
+_RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s*")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
 _RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*$")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
 
 
 def _normalizar_opciones(texto: str) -> str:
-    """Convierte 'a)', 'a.', 'a.-', etc., a '\\na) ' uniforme."""
+    """Convierte etiquetas de opción a ``\\na) `` uniforme (script base + ``a.-``)."""
     return _RE_OPCION_NORMALIZADA.sub(
         lambda m: f"\n{m.group(1).lower()}) ",
         texto,
@@ -45,7 +58,6 @@ def _normalizar_opciones(texto: str) -> str:
 
 
 def _limpiar_fragmento(texto: str) -> str:
-    """Quita restos de salto de página, números sueltos y letras huérfanas."""
     texto = _RE_MARCADOR_PAGINA.sub("", texto)
     texto = _RE_BANNER_RESERVA.sub("", texto)
     texto = re.sub(r"(?m)^\s*\d{1,3}\s*$", "", texto)
@@ -55,7 +67,6 @@ def _limpiar_fragmento(texto: str) -> str:
 
 
 def quitar_prefijo_numero(numero: str, enunciado: str) -> str:
-    """Quita ``N.-`` / ``N.`` del enunciado si la columna ``numero`` va aparte."""
     if not enunciado:
         return enunciado
     m = _RE_PREFIJO_NUMERO.match(enunciado)
@@ -67,7 +78,6 @@ def quitar_prefijo_numero(numero: str, enunciado: str) -> str:
 
 
 def _es_anulada(texto: str) -> bool:
-    """Detecta pregunta anulada (solo ``ANULADA`` o ``PREGUNTA ANULADA``)."""
     if not texto or not texto.strip():
         return False
     if _RE_PALABRA_ANULADA.search(texto):
@@ -75,12 +85,16 @@ def _es_anulada(texto: str) -> bool:
     t = texto.strip()
     if _RE_ENUNCIADO_ANULADA.match(t):
         return True
-    sin_num = re.sub(r"^\d{1,3}\s*\.-\s*", "", t, flags=re.IGNORECASE).strip()
+    sin_num = re.sub(
+        rf"^\d{{1,3}}\s*{_SUFFIX_NUMERO}",
+        "",
+        t,
+        flags=re.IGNORECASE,
+    ).strip()
     return bool(_RE_ENUNCIADO_ANULADA.match(sin_num))
 
 
 def _pregunta_anulada(numero: str, bloque: str, enunciado: str) -> Pregunta:
-    """Fila de pregunta anulada: enunciado corto y opciones con un espacio."""
     return Pregunta(
         numero=numero,
         enunciado="ANULADA.",
@@ -94,23 +108,14 @@ def _pregunta_anulada(numero: str, bloque: str, enunciado: str) -> Pregunta:
 
 
 def _puntuar(p: Pregunta) -> tuple[int, int, int]:
-    """Mayor puntuación = pregunta más completa (para deduplicar en dos columnas)."""
     opts = sum(1 for o in (p.a, p.b, p.c, p.d) if o.strip())
-    return (
-        1 if p.parse_ok else 0,
-        len(p.enunciado.strip()),
-        opts,
-    )
+    return (1 if p.parse_ok else 0, len(p.enunciado.strip()), opts)
 
 
 def _deduplicar(preguntas: list[Pregunta]) -> list[Pregunta]:
-    """Si el PDF de dos columnas genera el mismo número dos veces, queda la mejor."""
     mejores: dict[str, Pregunta] = {}
     for p in preguntas:
-        if p.numero not in mejores:
-            mejores[p.numero] = p
-            continue
-        if _puntuar(p) > _puntuar(mejores[p.numero]):
+        if p.numero not in mejores or _puntuar(p) > _puntuar(mejores[p.numero]):
             mejores[p.numero] = p
     return sorted(mejores.values(), key=lambda p: int(p.numero))
 
@@ -119,10 +124,6 @@ def filtrar_preguntas_numeradas(
     preguntas: list[Pregunta],
     filas_esperadas: int | None = None,
 ) -> list[Pregunta]:
-    """Conserva solo preguntas con número entero >= 1 (1, 2, 3…).
-
-    Si se indica ``filas_esperadas``, limita al rango 1..N (como el script base).
-    """
     filtradas: list[Pregunta] = []
     for p in preguntas:
         if not p.numero.isdigit():
@@ -140,7 +141,6 @@ def _renumerar_reservas(
     reservas: list[Pregunta],
     max_principal: int,
 ) -> list[Pregunta]:
-    """Si el bloque de reserva vuelve a numerar desde 1, continúa tras la última principal."""
     renumeradas: list[Pregunta] = []
     for p in reservas:
         n = int(p.numero)
@@ -150,9 +150,24 @@ def _renumerar_reservas(
     return renumeradas
 
 
+def _candidatos_pregunta(texto: str) -> list[re.Match[str]]:
+    """Marcas de inicio: inicio de línea (ChatGPT) + tras ``. `` en la misma línea."""
+    vistos: set[tuple[int, str]] = set()
+    candidatos: list[re.Match[str]] = []
+    for pat in (_RE_CANDIDATO_LINEA, _RE_CANDIDATO_INLINE):
+        for m in pat.finditer(texto):
+            clave = (m.start(), m.group("num"))
+            if clave in vistos:
+                continue
+            vistos.add(clave)
+            candidatos.append(m)
+    candidatos.sort(key=lambda m: m.start())
+    return candidatos
+
+
 def _bloques_secuenciales(texto: str) -> list[tuple[str, int, int]]:
-    """Delimita preguntas en orden 1, 2, 3… ignorando números fuera de secuencia."""
-    candidatos = list(_RE_CANDIDATO_PREGUNTA.finditer(texto))
+    """Delimita 1, 2, 3… solo aceptando el número que toca (ignora ruido)."""
+    candidatos = _candidatos_pregunta(texto)
     if not candidatos:
         return []
 
@@ -187,8 +202,21 @@ def _bloques_secuenciales(texto: str) -> list[tuple[str, int, int]]:
     return bloques
 
 
+def _truncar_antes_siguiente(bloque: str, numero: str) -> str:
+    """Quita ruido tipo ``99.-`` dentro del bloque antes de la pregunta que toca."""
+    n_min = int(numero) + 1
+    for m in _candidatos_pregunta(bloque):
+        if m.start() == 0:
+            continue
+        n = int(m.group("num").lstrip("0") or m.group("num"))
+        if n >= n_min:
+            return bloque[: m.start()].strip()
+    return bloque
+
+
 def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
-    """Parsea enunciado + opciones de un bloque ya delimitado."""
+    """Parsea un bloque (script base ``parse_questions_basic``)."""
+    bloque = _truncar_antes_siguiente(bloque, numero)
     bloque = _RE_CORTE_PLANTILLA.split(bloque)[0].strip()
     if not bloque.strip():
         return None
@@ -228,9 +256,6 @@ def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
         fin = opt_iter[j + 1].start() if j + 1 < 4 else len(bloque2)
         opciones[letra] = _limpiar_fragmento(bloque2[inicio:fin])
 
-    if _es_anulada(enunciado):
-        return _pregunta_anulada(numero, bloque, enunciado)
-
     return Pregunta(
         numero=numero,
         enunciado=enunciado,
@@ -244,7 +269,6 @@ def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
 
 
 def _parsear_texto_preguntas(texto: str) -> list[Pregunta]:
-    """Parsea un bloque de texto (sin banner de reserva mezclado)."""
     texto = _normalizar_opciones(texto)
     preguntas: list[Pregunta] = []
     for numero, inicio, fin in _bloques_secuenciales(texto):
@@ -255,7 +279,6 @@ def _parsear_texto_preguntas(texto: str) -> list[Pregunta]:
 
 
 def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
-    """Detecta y parsea preguntas tipo test del PDF."""
     if not paginas:
         return []
 
@@ -264,7 +287,6 @@ def extraer_preguntas(paginas: list[PaginaPDF]) -> list[Pregunta]:
         return []
 
     texto = _RE_MARCADOR_PAGINA.sub("\n", texto)
-    texto = _normalizar_opciones(texto)
     texto = re.sub(
         r"(?i)(\bPREGUNTAS\s+DE\s+RESERVA\b)",
         r"\n\1\n",
@@ -286,5 +308,4 @@ def extraer_preguntas_filtradas(
     paginas: list[PaginaPDF],
     filas_esperadas: int | None = None,
 ) -> list[Pregunta]:
-    """Extrae preguntas numeradas y descarta ruido fuera del rango esperado."""
     return filtrar_preguntas_numeradas(extraer_preguntas(paginas), filas_esperadas)

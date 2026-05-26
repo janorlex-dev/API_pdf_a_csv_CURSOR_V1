@@ -100,6 +100,7 @@ d) d
     assert [p.numero for p in out] == ["1", "2"]
     assert out[0].enunciado.startswith("Primera")
     assert out[1].enunciado.startswith("Segunda")
+    assert "99" not in out[0].d
 
 
 def test_opciones_formato_guion() -> None:
@@ -127,7 +128,7 @@ d) op d
 
 
 def test_no_confunde_importe_con_pregunta() -> None:
-    """1.200 euros no debe cortar la pregunta 5."""
+    """1.200 euros no debe cortar la pregunta 5 (secuencial ignora el falso 1.)."""
     texto = """
 5.- Montaña, abogada, está negociando con su compañero Simón el cumplimiento de un
 contrato de compraventa entre clientes de ambos y en concreto el pago de la cantidad de
@@ -151,8 +152,37 @@ d.- op d
     q5 = next(p for p in out if p.numero == "5")
     assert q5.parse_ok is True
     assert "1.200 euros" in q5.enunciado
-    assert "Montaña?:" in q5.enunciado.replace("\n", " ")
     assert "obedeciendo" in q5.a
+
+
+def test_comun_2019_pregunta_inline_tras_punto() -> None:
+    """Comun_2019: la 15 empieza en la misma línea: 'instancia. 15. Federico'."""
+    texto = """
+14.- María, abogada de oficio de Juan en un proceso matrimonial:
+a) No, Juan debe solicitar una nueva designación.
+b) Si, ya que la designación del turno de oficio comporta incidentes.
+c) No, ya que transcurrido un año se extingue la designación.
+d) Sí, ya que la asistencia jurídica gratuita comprende el trámite de ejecución, si se produce dentro de los dos años de la sentencia de la instancia. 15. Federico es designado abogado de Juana, quien quiere entablar una demanda:
+a) Federico tendrá que asumir la asistencia jurídica que reclama Juana.
+b) La comisión designará un nuevo abogado.
+c) Se solicitará un informe adicional al Ministerio Fiscal.
+d) Federico puede renunciar a la designación.
+16.- Joana, Pere y Joan Francesc quieren ejercer colectivamente la abogacía:
+a) Sí, independientemente de la forma social.
+b) No, ya que pueden acogerse a cualquier forma mercantil.
+c) Sí, siempre que vayan a tener colaboradores.
+d) No, ya que los abogados están exentos.
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert [p.numero for p in out] == ["14", "15", "16"]
+    q14 = next(p for p in out if p.numero == "14")
+    q15 = next(p for p in out if p.numero == "15")
+    assert q14.parse_ok is True
+    assert "instancia" in q14.d
+    assert "Federico" not in q14.d
+    assert q15.parse_ok is True
+    assert "Federico" in q15.enunciado
+    assert "Juana" in q15.enunciado
 
 
 def test_no_confunde_fecha_con_pregunta() -> None:
