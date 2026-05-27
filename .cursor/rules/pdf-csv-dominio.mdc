@@ -92,6 +92,8 @@ Corte en la **primera** aparición de cualquiera de:
 
 - Cabecera: `COMUN 2019`, `JUNIO 2024`, `SEPT 2024`, `COMPROBADA`, `SOLUCION`,
   `PLANTILLA`, `RESPUESTAS`, `PENAL 2024`, etc. (`_RE_CORTE_PLANTILLA`).
+  **`PLANTILLA`/`SOLUCION`/`RESPUESTAS` solo en línea propia** (cabecera), no dentro
+  del enunciado (p. ej. «incorpore a su plantilla»).
 - Línea solo con `1.b`, `1.d`, etc.
 - **Plantilla inline sin cabecera**: dos parejas seguidas `N.letra` (ej. `1.b 26.d`
   pegado al final de la opción d de la última pregunta).

@@ -302,3 +302,48 @@ def test_opciones_guion_tres_respuestas() -> None:
     assert q1.a == "Primera opción"
     assert q1.c == "Tercera opción"
     assert q1.d == ""
+
+
+def test_enunciado_con_palabra_plantilla_no_corta_opciones() -> None:
+    """«su plantilla» en el enunciado no debe activar corte de solucionario."""
+    texto = """
+6 - Fernando ha trabajado en el despacho de Saturnino durante 13 años. Laura le ha
+propuesto a Fernando que se incorpore a su plantilla, siempre y cuando revele datos:
+- Primera opción de respuesta.
+- Segunda opción de respuesta.
+- Tercera opción de respuesta.
+- Cuarta opción de respuesta.
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert len(out) == 1
+    assert out[0].parse_ok is True
+    assert "plantilla" in out[0].enunciado
+    assert out[0].a.startswith("Primera")
+
+
+def test_reserva_guion_sin_espacio_tras_guion() -> None:
+    """Reservas del Común: ``1 -José`` (sin espacio) → renumerar a 51."""
+    texto = """
+50 - Última pregunta principal:
+- op a
+- op b
+- op c
+- op d
+
+PREGUNTAS DE RESERVA
+1 -José Luis, Abogado de Patricia, tiene un depósito del cliente:
+- Sí, siempre que lleve la contabilidad.
+- Sí, si hace gestión diligente.
+- No, debe usar cuenta específica.
+- No, nunca debe ser depositario.
+"""
+    principales = _parsear_texto_preguntas(texto.split("PREGUNTAS DE RESERVA")[0])
+    reservas = _renumerar_reservas(
+        _parsear_texto_preguntas(texto.split("PREGUNTAS DE RESERVA", 1)[1]),
+        50,
+    )
+    assert len(principales) == 1
+    assert len(reservas) == 1
+    assert reservas[0].numero == "51"
+    assert reservas[0].parse_ok is True
+    assert "José Luis" in reservas[0].enunciado

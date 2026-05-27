@@ -18,8 +18,8 @@ class Pregunta:
     parse_ok: bool = True
 
 
-# Separador tras el número: ``.-`` primero; luego ``. `` (no ``1.200``); guion suelto.
-_SUFFIX_NUMERO = r"(?:\.-|\.(?!\d)\s+|[-–]\s+|\)\s+)"
+# Guion: ``6 -`` o ``1 -Texto`` (sin espacio tras el guion, reservas del Común).
+_SUFFIX_NUMERO = r"(?:\.-|\.(?!\d)\s+|[-–]\s*|\)\s+)"
 
 _RE_CANDIDATO_LINEA = re.compile(
     rf"(?m)^\s*(?P<num>\d{{1,3}})\s*{_SUFFIX_NUMERO}"

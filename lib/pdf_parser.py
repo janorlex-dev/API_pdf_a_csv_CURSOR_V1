@@ -35,12 +35,15 @@ _RE_CORTE_PLANTILLA = re.compile(
     r"("
     r"COMPROBADA\b|"
     r"(?:JUNIO|SEPTIEMBRE|SEPT)\s+\d{4}|"
-    r"SOLUCION|PLANTILLA|RESPUESTAS|"
     r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
     r"PENAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
     r"PENITENCIARIO\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
     r"LABORAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?"
     r")\b"
+)
+# SOLUCION/PLANTILLA/RESPUESTAS solo como cabecera de línea (no «su plantilla» en enunciados).
+_RE_CORTE_PLANTILLA_ENCABEZADO_LINEA = re.compile(
+    r"(?im)^\s*(SOLUCION(?:ES)?|PLANTILLA(?:\s+DE\s+RESPUESTAS)?|RESPUESTAS)\b"
 )
 
 # Plantilla sin cabecera: ``1.b 26.d`` (dos parejas seguidas) o línea solo ``1.b``.
@@ -75,6 +78,7 @@ def cortar_antes_plantilla(texto: str) -> str:
     cortes: list[int] = []
     for patron in (
         _RE_CORTE_PLANTILLA,
+        _RE_CORTE_PLANTILLA_ENCABEZADO_LINEA,
         _RE_INICIO_PLANTILLA_LINEA,
         _RE_INICIO_PLANTILLA_INLINE,
     ):
