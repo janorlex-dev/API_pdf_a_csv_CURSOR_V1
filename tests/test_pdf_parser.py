@@ -45,3 +45,28 @@ def test_quitar_ruido_encabezado_en_fragmento() -> None:
         quitar_ruido_encabezado("Texto de opción. MINISTERIO DE JUSTICIA")
         == "Texto de opción."
     )
+
+
+def test_no_borra_marcador_pregunta_guion_solo_linea() -> None:
+    """``30 -`` en línea propia es inicio de pregunta (Común), no número de página."""
+    paginas = [
+        "MINISTERIO DE JUSTICIA\n29 -\nEnunciado veintinueve\n- op a\n- 5 -",
+        "MINISTERIO DE JUSTICIA\n30 -\nEnunciado treinta\n- op a\n- 6 -",
+    ]
+    limpias = limpiar_textos_pagina(paginas)
+    assert "29 -" in limpias[0]
+    assert "30 -" in limpias[1]
+    assert "- 5 -" not in limpias[0]
+    assert "- 6 -" not in limpias[1]
+
+
+def test_preguntas_guion_tras_limpieza_paginas() -> None:
+    paginas = [
+        "MINISTERIO DE JUSTICIA\n1 -\n¿Primera?\n- op a\n- op b\n- op c\n- op d\n- 1 -",
+        "MINISTERIO DE JUSTICIA\n2 -\n¿Segunda?\n- ra\n- rb\n- rc\n- rd\n- 2 -",
+    ]
+    texto = "\n\n".join(limpiar_textos_pagina(paginas))
+    out = _parsear_texto_preguntas(texto)
+    assert [p.numero for p in out] == ["1", "2"]
+    assert out[0].parse_ok is True
+    assert out[1].parse_ok is True

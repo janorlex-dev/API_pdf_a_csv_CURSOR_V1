@@ -24,7 +24,8 @@ _TEXTOS_ENCABEZADO_FIJO: tuple[str, ...] = (
 
 _RE_NUM_PAGINA = (
     re.compile(r"^\d{1,3}$"),
-    re.compile(r"^-?\s*\d{1,3}\s*-?$"),
+    # Pie de página con guiones a ambos lados (- 12 -). No confundir con preguntas ``30 -``.
+    re.compile(r"^-\s*\d{1,3}\s*-$"),
     re.compile(r"(?i)^p[aá]gina\s+\d{1,3}$"),
     re.compile(r"(?i)^page\s+\d{1,3}$"),
 )
@@ -96,7 +97,7 @@ def _es_numero_pagina(linea: str) -> bool:
 
 def _es_encabezado_fijo(linea: str) -> bool:
     comp = _normalizar_linea_comparacion(linea).upper()
-    return any(texto in comp for texto in _TEXTOS_ENCABEZADO_FIJO)
+    return comp in {texto.upper() for texto in _TEXTOS_ENCABEZADO_FIJO}
 
 
 def _detectar_lineas_repetidas(

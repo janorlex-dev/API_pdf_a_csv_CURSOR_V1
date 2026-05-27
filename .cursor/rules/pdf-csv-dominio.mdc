@@ -30,7 +30,8 @@ instrucciones de negocio del usuario.
 Antes de unir hojas y extraer preguntas, `pdf_parser._limpiar_paginas_pdf` limpia
 **cada página** (ver `docs/historico/chatgpt no se copie el ancabezado ni el numero de pagina.txt`):
 
-1. **Números de página sueltos**: `12`, `- 5 -`, `Página 6`, `Page 3`, etc.
+1. **Números de página sueltos**: `12`, `- 12 -`, `Página 6`, `Page 3`, etc.
+   **No** confundir con marcadores de pregunta formato guion en línea propia (`30 -`).
 2. **Membretes fijos conocidos** (línea completa o pegados al final de una opción):
    `MINISTERIO DE JUSTICIA`, `MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES`,
    `PRUEBA DE EVALUACIÓN DE APTITUD PROFESIONAL`, `ACCESO A LA PROFESIÓN DE ABOGADO`,
