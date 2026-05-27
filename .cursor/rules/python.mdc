@@ -41,6 +41,9 @@ alwaysApply: true
 - Cualquier asignatura y cualquier número de preguntas (1…999).
 - Extracción: bloques numerados secuenciales; opciones letra (4) o guion (3–4);
   reservas renumeradas; plantilla en últimas páginas o manual.
+- **`pdf_parser.py`**: extracción por páginas; `_limpiar_paginas_pdf` (membrete, pie,
+  números de página); `cortar_antes_plantilla` (dos zonas); `quitar_ruido_encabezado`
+  en fragmentos vía `extractor_estructurado._limpiar_fragmento`.
 - PyMuPDF con `get_text("text", sort=True)` en `pdf_parser` (mejor que el script
   base plano para PDFs de dos columnas).
 - `limpiar_campo` en `csv_builder`: colapsar saltos de línea del PDF a espacio.
@@ -49,3 +52,5 @@ alwaysApply: true
 - Si se añaden tests, usar `pytest` y colocarlos en `tests/`.
 - Mockear `httpx` para no llamar a Vercel Blob en tests.
 - Para probar extractor: PDFs sintéticos pequeños en `tests/fixtures/`.
+- Tests de membrete/plantilla: `tests/test_pdf_parser.py`, casos en `tests/test_extractor.py`
+  (`test_corte_plantilla_inline_*`, `test_corte_comprobada_*`, `test_encabezado_*`).

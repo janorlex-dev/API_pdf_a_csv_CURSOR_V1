@@ -15,7 +15,8 @@ comportamiento alineado con sus secciones 6 y 7.
 | Función del script base       | Módulo en `lib/`                                                  |
 | ----------------------------- | ----------------------------------------------------------------- |
 | `extract_text_from_pdf`       | `pdf_parser.extraer_paginas` (PyMuPDF, `get_text("text", sort=True)`). |
-| `clean_text`                  | `pdf_parser._limpiar` + `_quitar_ruido_pagina`.                         |
+| `clean_text`                  | `pdf_parser._limpiar_paginas_pdf` + `quitar_ruido_encabezado` + `_limpiar`. |
+| `split_questions_and_answer_key` | `pdf_parser.cortar_antes_plantilla` + `texto_para_preguntas`.       |
 | `parse_answer_key`            | `plantilla.extraer_plantilla` + `parsear_respuestas_texto` (manual).   |
 | `parse_questions_basic`       | `extractor_estructurado.extraer_preguntas_filtradas`.                  |
 | `build_rows` + `write_csv`    | `csv_builder.construir_csv`.                                      |
@@ -46,6 +47,17 @@ comportamiento alineado con sus secciones 6 y 7.
 11. **Reservas renumeradas** tras `PREGUNTAS DE RESERVA` (1→N+1, 2→N+2…).
 12. **Anuladas** normalizadas a `ANULADA.` / `" "` / `correcta=ANULADA` en CSV.
 13. **`limpiar_campo`** en `csv_builder`: una línea por celda (sin saltos del PDF).
+14. **Dos zonas PDF** (`cortar_antes_plantilla`): preguntas vs plantilla; corte por
+    cabecera (`COMUN`, `JUNIO`, `COMPROBADA`…), línea solo `1.b`, o plantilla inline
+    (`1.b 26.d` sin cabecera). Evita que el solucionario contamine opciones.
+15. **Limpieza por página** (`_limpiar_paginas_pdf`): quita membrete repetido
+    (`MINISTERIO DE JUSTICIA`, etc.), números de página y líneas repetidas en ≥2 hojas;
+    `quitar_ruido_encabezado` en fragmentos por si el membrete queda pegado a una opción.
+
+## Referencias históricas (diseño)
+
+- `docs/historico/chatgt_instrucción  es separar el PDF en dos zonas.txt` — corte plantilla.
+- `docs/historico/chatgpt no se copie el ancabezado ni el numero de pagina.txt` — membrete/pie.
 
 ## Alcance funcional (alineado con `proyecto.mdc`)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .pdf_parser import PaginaPDF, cortar_antes_plantilla, texto_para_preguntas
+from .pdf_parser import PaginaPDF, cortar_antes_plantilla, quitar_ruido_encabezado, texto_para_preguntas
 
 
 @dataclass
@@ -64,7 +64,7 @@ def _limpiar_fragmento(texto: str) -> str:
     texto = re.sub(r"(?m)^\s*\d{1,3}\s*$", "", texto)
     texto = re.sub(r"(?m)\n\s*[abcdABCD]\s*$", "", texto)
     texto = re.sub(r"\n{3,}", "\n\n", texto)
-    return texto.strip()
+    return quitar_ruido_encabezado(texto.strip())
 
 
 def quitar_prefijo_numero(numero: str, enunciado: str) -> str:

@@ -21,26 +21,31 @@ el formato esperado. **No está limitada a una asignatura**: el usuario indica
 - Campo opcional `filas_esperadas` para validar el total de filas.
 
 ### Extracción (solo bloque de preguntas)
-1. Extraer texto por páginas (`sort=True` para PDFs de dos columnas).
-2. Separar preguntas de plantilla/solucionario (última hoja; corte en JUNIO/COMUN/…
-   con mes+año para evitar falsos positivos).
-3. Delimitar bloques **secuenciales** 1→2→3… (ignora números fuera de orden, p. ej.
+1. Extraer texto **página por página** (`sort=True` para PDFs de dos columnas).
+2. **Limpiar cada hoja** antes de unir (`_limpiar_paginas_pdf`): números de página,
+   membretes fijos (`MINISTERIO DE JUSTICIA`, etc.), líneas repetidas en ≥2 páginas;
+   limpieza extra en fragmentos (`quitar_ruido_encabezado`) si el membrete queda
+   pegado a una opción.
+3. **Separar dos zonas** preguntas vs plantilla (`cortar_antes_plantilla` en última hoja
+   y en cada bloque): cabecera `JUNIO`/`COMUN`/`COMPROBADA`…, línea solo `1.b`, o
+   plantilla inline `1.b 26.d` sin cabecera. La plantilla solo alimenta `correcta`.
+4. Delimitar bloques **secuenciales** 1→2→3… (ignora números fuera de orden, p. ej.
    importes `1.200` o fechas).
-4. Inicio de pregunta: `N.-`, `N. ` (no `N.dígitos`), `N -`, `N)` al inicio de línea;
+5. Inicio de pregunta: `N.-`, `N. ` (no `N.dígitos`), `N -`, `N)` al inicio de línea;
    también **inline** tras `. ` en la misma línea (p. ej. opción d. `15. Federico`).
-5. Por cada bloque, en este orden:
+6. Por cada bloque, en este orden:
    - **Opciones con letra** (`a)`, `a.`, `a.-`, …): exige **4** opciones → columnas
      `a,b,c,d`.
    - **Opciones con guion** (líneas `^\s*-\s+`): acepta **3 o 4** guiones; mapea a
      `a,b,c,d` (si son 3, `d` queda vacía). Enunciado multilínea; texto de opción
      hasta el siguiente guion al inicio de línea.
    - Si ninguno encaja: fila con `parse_ok=False` y opciones vacías.
-6. **Reservas**: tras banner `PREGUNTAS DE RESERVA`, renumerar 1→N+1, 2→N+2…
+7. **Reservas**: tras banner `PREGUNTAS DE RESERVA`, renumerar 1→N+1, 2→N+2…
    (N = última pregunta principal).
-7. **Anuladas**: `pregunta=ANULADA.`, opciones `" "`, `correcta=ANULADA`.
-8. Quitar prefijo numérico del enunciado (`N.-`, etc.) en columna `pregunta`.
-9. Plantilla `correcta`: auto en últimas páginas **o** manual (`respuestas` JSON o texto
-   tipo `1.B`, `1 B`, `1.B    26.B`).
+8. **Anuladas**: `pregunta=ANULADA.`, opciones `" "`, `correcta=ANULADA`.
+9. Quitar prefijo numérico del enunciado (`N.-`, etc.) en columna `pregunta`.
+10. Plantilla `correcta`: auto en últimas páginas **o** manual (`respuestas` JSON o texto
+    tipo `1.B`, `1 B`, `1.B    26.B`).
 
 ### Salida CSV
 - Cabecera default: `numero,pregunta,a,b,c,d,correcta,materia` (configurable).
@@ -74,7 +79,9 @@ el formato esperado. **No está limitada a una asignatura**: el usuario indica
   - `models.py` (Pydantic)
 - `public/` — web mínima (`index.html`, `styles.css`, `app.js`).
 - `docs/base_pdf_a_csv.txt` — script Python de referencia (fuente del diseño).
-- `docs/historico/` — chats previos archivados (no se cargan).
+- `docs/historico/` — chats previos archivados (no se cargan):
+  - `chatgt_instrucción  es separar el PDF en dos zonas.txt` — diseño corte plantilla.
+  - `chatgpt no se copie el ancabezado ni el numero de pagina.txt` — diseño membrete/pie.
 - `vercel.json`, `requirements.txt`, `runtime.txt`, `.env.example`.
 
 ## Reglas Cursor (`.cursor/rules/` — 5 archivos)
@@ -112,6 +119,10 @@ roadmap `num_opciones` (3\|4) están documentados en los cinco.
 - Reservas renumeradas tras banner `PREGUNTAS DE RESERVA`.
 - Anuladas: `pregunta=ANULADA.`, `correcta=ANULADA`, opciones `" "`.
 - Plantilla `correcta`: auto desde últimas páginas + override manual.
+- **Dos zonas PDF**: preguntas vs plantilla (`cortar_antes_plantilla`); plantilla inline
+  `1.b 26.d` sin cabecera; solucionario nunca en columnas de enunciado/opciones.
+- **Limpieza de membrete/pie**: por página antes de unir hojas; quita `MINISTERIO DE JUSTICIA`,
+  números de página y líneas repetidas en ≥2 hojas.
 - Preguntas mal parseadas: se **incluyen** con opciones vacías (`parse_ok=False`)
   y se listan en `preguntas_no_parseadas`. **Nunca** se inventan.
 - No OCR en v1.

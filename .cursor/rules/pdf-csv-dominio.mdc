@@ -1,6 +1,6 @@
 ---
 description: Reglas de dominio para la conversión PDF a CSV (literalidad, plantilla, reservas, anuladas)
-globs: ["lib/extractor_*.py", "lib/plantilla.py", "lib/csv_builder.py", "lib/validator.py", "api/**/*.py"]
+globs: ["lib/extractor_*.py", "lib/pdf_parser.py", "lib/plantilla.py", "lib/csv_builder.py", "lib/validator.py", "api/**/*.py"]
 alwaysApply: true
 ---
 
@@ -20,6 +20,30 @@ instrucciones de negocio del usuario.
   pegar la plantilla en `respuestas` (JSON o texto multilínea con pares número–letra).
 - **Objetivo de extracción**: del PDF solo el bloque de preguntas numeradas; excluir
   plantilla de la última hoja; no volcar solucionario en columnas de enunciado/opciones.
+- **Dos zonas obligatorias** (ver `docs/historico/chatgt_instrucción  es separar el PDF en dos zonas.txt`):
+  - **Zona preguntas** → solo alimenta `pregunta`, `a`, `b`, `c`, `d`.
+  - **Zona plantilla** → solo alimenta `correcta` (vía `plantilla.py` o `respuestas` manual).
+  - Nunca mezclar: líneas como `1.b`, `26.d`, `28.anulada` no pueden acabar en opciones.
+
+## Limpieza de membrete y números de página
+
+Antes de unir hojas y extraer preguntas, `pdf_parser._limpiar_paginas_pdf` limpia
+**cada página** (ver `docs/historico/chatgpt no se copie el ancabezado ni el numero de pagina.txt`):
+
+1. **Números de página sueltos**: `12`, `- 5 -`, `Página 6`, `Page 3`, etc.
+2. **Membretes fijos conocidos** (línea completa o pegados al final de una opción):
+   `MINISTERIO DE JUSTICIA`, `MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES`,
+   `PRUEBA DE EVALUACIÓN DE APTITUD PROFESIONAL`, `ACCESO A LA PROFESIÓN DE ABOGADO`,
+   `ACCESO A LA ABOGACÍA`, `CONVOCATORIA`.
+3. **Líneas repetidas en ≥2 páginas** con menos de 90 caracteres (membrete, pie, título
+   del examen que se repite en todas las hojas).
+
+Limpieza de seguridad en fragmentos: `pdf_parser.quitar_ruido_encabezado` (llamada desde
+`extractor_estructurado._limpiar_fragmento`) por si el membrete queda inline tras una opción
+(ej. `...Estado demandado. MINISTERIO DE JUSTICIA`).
+
+**No** pedir al usuario que edite el PDF para quitar membrete ni que añada la palabra
+`PLANTILLA` antes del solucionario.
 
 ## Formatos de pregunta y opciones (v1 implementado)
 
@@ -57,6 +81,23 @@ instrucciones de negocio del usuario.
 - Si hay comillas internas, `csv.writer` con `QUOTE_ALL` las escapa correctamente.
 
 ## Plantilla de respuestas
+
+### Separación en dos zonas (`pdf_parser.cortar_antes_plantilla`)
+
+Cortar **antes** de la plantilla en la última hoja y en cada bloque de pregunta.
+La plantilla **no** se parsea como preguntas; solo sirve para `correcta`.
+
+Corte en la **primera** aparición de cualquiera de:
+
+- Cabecera: `COMUN 2019`, `JUNIO 2024`, `SEPT 2024`, `COMPROBADA`, `SOLUCION`,
+  `PLANTILLA`, `RESPUESTAS`, `PENAL 2024`, etc. (`_RE_CORTE_PLANTILLA`).
+- Línea solo con `1.b`, `1.d`, etc.
+- **Plantilla inline sin cabecera**: dos parejas seguidas `N.letra` (ej. `1.b 26.d`
+  pegado al final de la opción d de la última pregunta).
+
+Limpieza extra de cola: cabeceras `COMUN`/`JUNIO`/`SEPT` que hayan quedado en el bloque.
+
+### Detección de respuestas (`plantilla.py`)
 - Buscar **siempre** en las **últimas páginas** del PDF (la última suele tener
   el solucionario). El módulo recorre las 3 últimas hacia atrás.
 - Solo aceptar una página como plantilla si tiene ≥ 5 parejas número-letra.
@@ -106,3 +147,6 @@ instrucciones de negocio del usuario.
 5. No hay filas vacías al final.
 6. Listar `preguntas_no_parseadas` si las hay.
 7. Advertir si faltan respuestas en la plantilla.
+8. **No** debe aparecer membrete (`MINISTERIO DE JUSTICIA`, etc.) ni números de página
+   en enunciados u opciones.
+9. **No** debe aparecer texto de plantilla (`1.b 26.d…`) en columnas de preguntas.

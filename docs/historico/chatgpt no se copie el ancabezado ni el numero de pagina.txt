@@ -1,0 +1,193 @@
+como haces par qeu no se copie el ancabezado ni el numero de pagina y no salga lo que se repite en todas las hojas de este test MINISTERIO DE JUSTICIA 
+Pensó durante unos pocos segundos
+
+Lo hago con una limpieza previa por página, antes de separar preguntas. Sí, en Python.
+
+La idea es:
+
+leer el PDF página por página;
+quitar líneas repetidas de encabezado/pie;
+quitar números de página sueltos;
+quitar textos fijos como MINISTERIO DE JUSTICIA;
+después unir el texto limpio y extraer preguntas.
+
+Código base:
+
+import re
+from collections import Counter
+
+
+def limpiar_linea_basica(linea: str) -> str:
+    """
+    Normaliza una línea para comparar encabezados/pies repetidos.
+    No se usa para el texto final, solo para detectar repeticiones.
+    """
+    linea = linea.strip()
+    linea = re.sub(r"\s+", " ", linea)
+    return linea
+
+
+def detectar_lineas_repetidas(pages_text: list[str], min_repeticiones: int = 2) -> set[str]:
+    """
+    Detecta líneas que aparecen repetidas en varias páginas:
+    encabezados, pies, nombre del ministerio, nombre del examen, etc.
+    """
+    contador = Counter()
+
+    for page in pages_text:
+        lineas_unicas_pagina = set()
+
+        for linea in page.splitlines():
+            limpia = limpiar_linea_basica(linea)
+
+            if limpia:
+                lineas_unicas_pagina.add(limpia)
+
+        contador.update(lineas_unicas_pagina)
+
+    repetidas = {
+        linea for linea, veces in contador.items()
+        if veces >= min_repeticiones
+    }
+
+    return repetidas
+
+
+def es_numero_pagina(linea: str) -> bool:
+    """
+    Elimina números de página sueltos:
+    1
+    2
+    3
+    Página 1
+    Page 1
+    - 1 -
+    """
+    linea = linea.strip()
+
+    patrones = [
+        r"^\d{1,3}$",
+        r"^-?\s*\d{1,3}\s*-?$",
+        r"(?i)^p[aá]gina\s+\d{1,3}$",
+        r"(?i)^page\s+\d{1,3}$",
+    ]
+
+    return any(re.match(patron, linea) for patron in patrones)
+
+
+def es_encabezado_fijo(linea: str) -> bool:
+    """
+    Elimina textos fijos conocidos que no forman parte de preguntas.
+    """
+    linea_limpia = limpiar_linea_basica(linea).upper()
+
+    textos_a_eliminar = [
+        "MINISTERIO DE JUSTICIA",
+        "MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES",
+        "PRUEBA DE EVALUACIÓN DE APTITUD PROFESIONAL",
+        "ACCESO A LA PROFESIÓN DE ABOGADO",
+        "ACCESO A LA ABOGACÍA",
+        "CONVOCATORIA",
+    ]
+
+    return any(texto in linea_limpia for texto in textos_a_eliminar)
+
+
+def limpiar_paginas_pdf(pages_text: list[str]) -> list[str]:
+    """
+    Limpia cada página eliminando:
+    - encabezados repetidos;
+    - pies repetidos;
+    - números de página;
+    - textos fijos como MINISTERIO DE JUSTICIA.
+    """
+
+    lineas_repetidas = detectar_lineas_repetidas(
+        pages_text,
+        min_repeticiones=2
+    )
+
+    paginas_limpias = []
+
+    for page in pages_text:
+        nuevas_lineas = []
+
+        for linea in page.splitlines():
+            linea_original = linea.strip()
+            linea_comparacion = limpiar_linea_basica(linea_original)
+
+            if not linea_original:
+                continue
+
+            if es_numero_pagina(linea_original):
+                continue
+
+            if es_encabezado_fijo(linea_original):
+                continue
+
+            if linea_comparacion in lineas_repetidas:
+                # Ojo: solo eliminar si parece encabezado/pie, no una opción repetida.
+                if len(linea_comparacion) < 90:
+                    continue
+
+            nuevas_lineas.append(linea_original)
+
+        paginas_limpias.append("\n".join(nuevas_lineas))
+
+    return paginas_limpias
+
+Ejemplo de uso con PyMuPDF:
+
+import fitz
+
+
+def extraer_paginas_pdf(pdf_path: str) -> list[str]:
+    doc = fitz.open(pdf_path)
+    pages_text = []
+
+    for page in doc:
+        text = page.get_text("text")
+        pages_text.append(text)
+
+    return pages_text
+
+
+pdf_path = "examen.pdf"
+
+pages_text = extraer_paginas_pdf(pdf_path)
+
+pages_clean = limpiar_paginas_pdf(pages_text)
+
+texto_limpio = "\n".join(pages_clean)
+
+La parte específica que evita copiar MINISTERIO DE JUSTICIA es esta:
+
+def es_encabezado_fijo(linea: str) -> bool:
+    linea_limpia = limpiar_linea_basica(linea).upper()
+
+    textos_a_eliminar = [
+        "MINISTERIO DE JUSTICIA",
+        "MINISTERIO DE LA PRESIDENCIA, JUSTICIA Y RELACIONES CON LAS CORTES",
+        "PRUEBA DE EVALUACIÓN DE APTITUD PROFESIONAL",
+        "ACCESO A LA PROFESIÓN DE ABOGADO",
+        "ACCESO A LA ABOGACÍA",
+        "CONVOCATORIA",
+    ]
+
+    return any(texto in linea_limpia for texto in textos_a_eliminar)
+
+Y la parte que evita copiar números de página es esta:
+
+def es_numero_pagina(linea: str) -> bool:
+    linea = linea.strip()
+
+    patrones = [
+        r"^\d{1,3}$",
+        r"^-?\s*\d{1,3}\s*-?$",
+        r"(?i)^p[aá]gina\s+\d{1,3}$",
+        r"(?i)^page\s+\d{1,3}$",
+    ]
+
+    return any(re.match(patron, linea) for patron in patrones)
+
+Diferencia importante: esta limpieza se aplica antes de construir el CSV. Luego las preguntas se extraen solo del texto ya limpio.
