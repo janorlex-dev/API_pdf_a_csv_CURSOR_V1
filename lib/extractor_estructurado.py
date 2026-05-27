@@ -46,7 +46,7 @@ _RE_OPCION_NORMALIZADA = re.compile(
 _RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s*")
 _RE_INICIO_OPCION_GUION = re.compile(r"^\s*-\s+(.*)$")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
-_RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*$")
+_RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*(?:$|\b)")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
 
 

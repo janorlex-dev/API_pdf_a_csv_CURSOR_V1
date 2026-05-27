@@ -56,6 +56,34 @@ def test_anulada_sin_punto() -> None:
     assert out[0].anulada is True
 
 
+def test_anulada_con_texto_sustituto() -> None:
+    texto = """
+28.- ANULADA Se sustituye por la primera de reserva.
+a) op a
+b) op b
+c) op c
+d) op d
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert len(out) == 1
+    assert out[0].anulada is True
+    assert out[0].enunciado == "ANULADA."
+
+
+def test_corte_comprobada_no_contamina_opcion() -> None:
+    texto = """
+51.- Pregunta reserva:
+a) op a
+b) op b
+c) op c
+d) op d final COMPROBADA 1.b 2.c 28.anulada
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert len(out) == 1
+    assert out[0].d == "op d final"
+    assert "COMPROBADA" not in out[0].d
+
+
 def test_bloque_reserva_no_contamina_opcion() -> None:
     texto = """
 1.- Pregunta principal:

@@ -156,7 +156,7 @@ def _procesar(
     no_parseadas = [p.numero for p in preguntas if not p.parse_ok]
     if no_parseadas:
         advertencias.append(
-            "Preguntas sin 4 opciones detectadas (revisión manual): "
+            "Preguntas sin opciones válidas detectadas (revisión manual): "
             + ", ".join(no_parseadas)
         )
 

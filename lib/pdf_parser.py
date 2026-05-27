@@ -13,7 +13,9 @@ class PaginaPDF:
 _RE_SOLO_NUM_PAGINA = re.compile(r"^\d{1,3}$")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
 _RE_CORTE_PLANTILLA = re.compile(
-    r"(?i)\n\s*("
+    r"(?i)(?:\n\s*|\s+)"
+    r"("
+    r"COMPROBADA\b|"
     r"(?:JUNIO|SEPTIEMBRE|SEPT)\s+\d{4}|"
     r"SOLUCION|PLANTILLA|RESPUESTAS|"
     r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
