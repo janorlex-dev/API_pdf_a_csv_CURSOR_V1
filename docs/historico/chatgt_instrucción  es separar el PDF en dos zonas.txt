@@ -1,0 +1,117 @@
+La instrucción clave es separar el PDF en dos zonas:
+
+zona de preguntas → solo de ahí salen pregunta, a, b, c, d
+zona de plantilla final → solo de ahí salen las respuestas correctas
+
+Así evito que líneas como 1.b, 2.d, 28.anulada, 51.d se copien como si fueran preguntas.
+
+import re
+
+
+def split_questions_and_answer_key(full_text: str):
+    """
+    Separa el texto del PDF en:
+    - questions_text: parte de preguntas
+    - answer_key_text: plantilla final de respuestas
+
+    La plantilla NO se usa para crear preguntas.
+    Solo se usa para rellenar la columna correcta.
+    """
+
+    patrones_plantilla = [
+        r"(?i)\bCOMUN\s+\d{4}[_\s-]*\d\b",
+        r"(?i)\bJUNIO\s+\d{4}\b",
+        r"(?i)\bSEPT(?:IEMBRE)?\s+\d{4}\b",
+        r"(?m)^\s*1\s*[\.\-:]?\s*[A-Da-d]\s*$",
+        r"(?m)^\s*1\s*[\.\-:]?\s*[a-d]\s*$",
+    ]
+
+    cortes = []
+
+    for patron in patrones_plantilla:
+        match = re.search(patron, full_text)
+        if match:
+            cortes.append(match.start())
+
+    if not cortes:
+        return full_text, ""
+
+    corte = min(cortes)
+
+    questions_text = full_text[:corte].strip()
+    answer_key_text = full_text[corte:].strip()
+
+    return questions_text, answer_key_text
+
+
+def parse_answer_key(answer_key_text: str):
+    """
+    Extrae solo respuestas de la plantilla final.
+    Ejemplos admitidos:
+    1.b
+    1 B
+    28.anulada
+    51.d
+    R1.C
+    """
+
+    answers = {}
+
+    pattern = re.compile(
+        r"(?im)^\s*(R?\d{1,3})\s*[\.\-:]?\s*(A|B|C|D|ANULADA|/)\s*$"
+    )
+
+    for match in pattern.finditer(answer_key_text):
+        numero = match.group(1).upper()
+        respuesta = match.group(2).upper()
+        answers[numero] = respuesta
+
+    return answers
+
+
+def remove_answer_key_from_question_area(text: str):
+    """
+    Limpieza de seguridad:
+    elimina bloques de plantilla que puedan haberse quedado pegados
+    al final del texto de preguntas.
+    """
+
+    text = re.sub(
+        r"(?is)\b(COMUN\s+\d{4}[_\s-]*\d|JUNIO\s+\d{4}|SEPT(?:IEMBRE)?\s+\d{4}).*$",
+        "",
+        text
+    )
+
+    return text.strip()
+
+Y al construir las filas:
+
+questions_text, answer_key_text = split_questions_and_answer_key(full_text)
+
+questions_text = remove_answer_key_from_question_area(questions_text)
+
+answers = parse_answer_key(answer_key_text)
+
+# Las preguntas se extraen SOLO de questions_text
+# Las respuestas se extraen SOLO de answer_key_text
+
+La diferencia con el código general de las instrucciones es esta:
+
+Código general:
+- Extrae texto.
+- Detecta preguntas.
+- Detecta respuestas.
+- Escribe CSV.
+- Valida CSV.
+
+Código usado aquí además:
+- Corta el documento antes de la plantilla final.
+- Impide que la plantilla de respuestas se procese como preguntas.
+- Usa la plantilla final solo para la columna correcta.
+
+La línea más importante es esta:
+
+questions_text = full_text[:corte].strip()
+answer_key_text = full_text[corte:].strip()
+
+Eso es lo que evita copiar las respuestas de la última hoja dentro del texto de preguntas.

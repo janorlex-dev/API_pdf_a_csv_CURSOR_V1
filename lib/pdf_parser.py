@@ -25,6 +25,48 @@ _RE_CORTE_PLANTILLA = re.compile(
     r")\b"
 )
 
+# Plantilla sin cabecera: ``1.b 26.d`` (dos parejas seguidas) o línea solo ``1.b``.
+_RE_LETRA_PLANTILLA = r"(?:[A-Da-d](?:\?)?|ANULADA|anulada|/)"
+_RE_INICIO_PLANTILLA_LINEA = re.compile(
+    rf"(?m)^\s*1\s*[\.\-:]\s*{_RE_LETRA_PLANTILLA}\s*$"
+)
+_RE_INICIO_PLANTILLA_INLINE = re.compile(
+    rf"(?<!\d)"
+    rf"(\d{{1,3}})\s*[\.\-:]\s*{_RE_LETRA_PLANTILLA}"
+    rf"\s+"
+    rf"(?<!\d)(\d{{1,3}})\s*[\.\-:]\s*{_RE_LETRA_PLANTILLA}"
+)
+_RE_COLA_CABECERA_PLANTILLA = re.compile(
+    r"(?is)\b("
+    r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
+    r"JUNIO\s+\d{4}|"
+    r"SEPT(?:IEMBRE)?\s+\d{4}"
+    r").*$"
+)
+
+
+def cortar_antes_plantilla(texto: str) -> str:
+    """Elimina la zona de plantilla final pegada al bloque de preguntas.
+
+    Corta en la primera aparición de cabecera (COMUN, JUNIO, COMPROBADA…),
+    de una línea solo ``1.b``, o de dos parejas número-letra seguidas (``1.b 26.d``).
+    """
+    if not texto or not texto.strip():
+        return texto
+
+    cortes: list[int] = []
+    for patron in (
+        _RE_CORTE_PLANTILLA,
+        _RE_INICIO_PLANTILLA_LINEA,
+        _RE_INICIO_PLANTILLA_INLINE,
+    ):
+        m = patron.search(texto)
+        if m:
+            cortes.append(m.start())
+
+    recortado = texto[: min(cortes)].strip() if cortes else texto.strip()
+    return _RE_COLA_CABECERA_PLANTILLA.sub("", recortado).strip()
+
 
 def _limpiar(texto: str) -> str:
     """Limpieza mínima: no reformula ni resume, solo normaliza saltos y espacios."""
@@ -81,7 +123,7 @@ def texto_para_preguntas(paginas: list[PaginaPDF]) -> str:
             continue
         texto = pagina.texto
         if i == len(paginas) - 1:
-            texto = _RE_CORTE_PLANTILLA.split(texto)[0].strip()
+            texto = cortar_antes_plantilla(texto)
         partes.append(texto)
     return "\n\n".join(partes)
 

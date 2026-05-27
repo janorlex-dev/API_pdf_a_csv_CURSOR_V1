@@ -84,6 +84,23 @@ d) op d final COMPROBADA 1.b 2.c 28.anulada
     assert "COMPROBADA" not in out[0].d
 
 
+def test_corte_plantilla_inline_sin_cabecera_no_contamina_opcion() -> None:
+    """Plantilla pegada a la opción d sin COMUN/COMPROBADA (examen común)."""
+    texto = """
+51.- Marta, Abogada en el turno de oficio:
+a) Sí, siempre que el cliente muestre su conformidad.
+b) No, dado que en el ejercicio de su cargo está obligada a asistir.
+c) Sí, es posible la excusa en el orden penal, apreciada por el Juzgado.
+d) Sí, es posible la excusa en el orden penal, apreciada por el Decano de su Colegio profesional. 1.b 26.d 51.d 2.d 27.d 3.a 28.anulada 4.d 29.a 25.d 50.c
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert len(out) == 1
+    assert out[0].d.endswith("Colegio profesional.")
+    assert "1.b" not in out[0].d
+    assert "26.d" not in out[0].d
+    assert "51.d" not in out[0].d
+
+
 def test_bloque_reserva_no_contamina_opcion() -> None:
     texto = """
 1.- Pregunta principal:

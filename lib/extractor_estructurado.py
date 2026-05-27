@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .pdf_parser import PaginaPDF, _RE_CORTE_PLANTILLA, texto_para_preguntas
+from .pdf_parser import PaginaPDF, cortar_antes_plantilla, texto_para_preguntas
 
 
 @dataclass
@@ -285,7 +285,7 @@ def _pregunta_desde_opciones(
 def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
     """Parsea un bloque (script base ``parse_questions_basic`` + opciones con guion)."""
     bloque = _truncar_antes_siguiente(bloque, numero)
-    bloque = _RE_CORTE_PLANTILLA.split(bloque)[0].strip()
+    bloque = cortar_antes_plantilla(bloque)
     if not bloque.strip():
         return None
 
