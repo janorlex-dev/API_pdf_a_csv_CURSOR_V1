@@ -1,7 +1,15 @@
 from __future__ import annotations
 
 from lib.extractor_estructurado import _parsear_texto_preguntas
-from lib.pdf_parser import limpiar_textos_pagina, quitar_ruido_encabezado
+from lib.pdf_parser import cortar_antes_plantilla, limpiar_textos_pagina, quitar_ruido_encabezado
+
+
+def test_cortar_antes_plantilla_laboral_guion_bajo() -> None:
+    texto = (
+        "d)- Opción final de la pregunta. laboral_2018_1\n"
+        "1.B          2.C\n"
+    )
+    assert cortar_antes_plantilla(texto) == "d)- Opción final de la pregunta."
 
 
 def test_limpia_membrete_repetido_entre_paginas() -> None:

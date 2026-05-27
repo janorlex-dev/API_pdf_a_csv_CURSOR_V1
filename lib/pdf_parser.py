@@ -30,15 +30,21 @@ _RE_NUM_PAGINA = (
     re.compile(r"(?i)^page\s+\d{1,3}$"),
 )
 
+# Cabeceras tipo ``COMUN 2019_2``, ``laboral_2018_1`` (espacio o guion bajo tras la materia).
+_RE_MATERIA_ANIO = (
+    r"(?:"
+    r"COMUN|"
+    r"PENAL|"
+    r"PENITENCIARIO|"
+    r"LABORAL"
+    r")(?:\s+|_)\d{4}(?:[_\-][A-Za-z0-9]+)?"
+)
 _RE_CORTE_PLANTILLA = re.compile(
     r"(?i)(?:\n\s*|\s+)"
     r"("
     r"COMPROBADA\b|"
     r"(?:JUNIO|SEPTIEMBRE|SEPT)\s+\d{4}|"
-    r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"PENAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"PENITENCIARIO\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"LABORAL\s+\d{4}(?:[_\-][A-Za-z0-9]+)?"
+    rf"{_RE_MATERIA_ANIO}"
     r")\b"
 )
 # SOLUCION/PLANTILLA/RESPUESTAS solo como cabecera de línea (no «su plantilla» en enunciados).
@@ -58,11 +64,7 @@ _RE_INICIO_PLANTILLA_INLINE = re.compile(
     rf"(?<!\d)(\d{{1,3}})\s*[\.\-:]\s*{_RE_LETRA_PLANTILLA}"
 )
 _RE_COLA_CABECERA_PLANTILLA = re.compile(
-    r"(?is)\b("
-    r"COMUN\s+\d{4}(?:[_\-][A-Za-z0-9]+)?|"
-    r"JUNIO\s+\d{4}|"
-    r"SEPT(?:IEMBRE)?\s+\d{4}"
-    r").*$"
+    rf"(?is)\b(?:{_RE_MATERIA_ANIO}|JUNIO\s+\d{{4}}|SEPT(?:IEMBRE)?\s+\d{{4}}).*$"
 )
 
 

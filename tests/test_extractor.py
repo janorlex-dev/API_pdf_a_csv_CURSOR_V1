@@ -84,6 +84,22 @@ d) op d final COMPROBADA 1.b 2.c 28.anulada
     assert "COMPROBADA" not in out[0].d
 
 
+def test_corte_cabecera_laboral_guion_bajo_no_contamina_opcion() -> None:
+    """Cabecera ``laboral_2018_1`` pegada a la opción d (examen laboral)."""
+    texto = """
+2.- Has recibido una sentencia en un asunto de modificación sustancial individual de las condiciones de trabajo contraria a tus intereses. Además, es muy discutible y consideras que el juzgador se ha equivocado y mezclado las pruebas que se desarrollaron en la vista. En definitiva, tienes razones para recurrir en suplicación la misma y así se lo dices a tu cliente.
+a)- Es un error porque las sentencias que se dictan en materia de modificación sustancial de las condiciones de trabajo de carácter individual no tienen ulterior recurso.
+b)- Es un buen consejo, aunque también debes advertir a tu cliente que estos recursos son muy difíciles y es probable que no os den la razón.
+c)- Es un error porque el recurso que procede es el de casación para la unificación de doctrina.
+d)- No está mal pero sería mejor que le aconsejaras hablar con la otra parte e intentar llegar a un acuerdo a cambio de no recurrir. laboral_2018_1
+1.B          26.B
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert len(out) == 1
+    assert out[0].d.endswith("a cambio de no recurrir.")
+    assert "laboral_2018_1" not in out[0].d
+
+
 def test_corte_plantilla_inline_sin_cabecera_no_contamina_opcion() -> None:
     """Plantilla pegada a la opción d sin COMUN/COMPROBADA (examen común)."""
     texto = """
