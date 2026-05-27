@@ -22,10 +22,24 @@ el formato esperado. **No está limitada a una asignatura**: el usuario indica
 
 ### Extracción (solo bloque de preguntas)
 1. Extraer texto por páginas (`sort=True` para PDFs de dos columnas).
-2. Separar preguntas de plantilla/solucionario (última hoja; corte en JUNIO/COMUN/…).
-3. Detectar **solo** bloques que empiezan con número de pregunta (`1.-`, `2.`, `3)`, …).
-4. Por cada pregunta: enunciado literal + opciones **a, b, c, d** (4 opciones en v1).
-5. Plantilla `correcta`: auto en últimas páginas **o** manual (`respuestas` JSON o texto
+2. Separar preguntas de plantilla/solucionario (última hoja; corte en JUNIO/COMUN/…
+   con mes+año para evitar falsos positivos).
+3. Delimitar bloques **secuenciales** 1→2→3… (ignora números fuera de orden, p. ej.
+   importes `1.200` o fechas).
+4. Inicio de pregunta: `N.-`, `N. ` (no `N.dígitos`), `N -`, `N)` al inicio de línea;
+   también **inline** tras `. ` en la misma línea (p. ej. opción d. `15. Federico`).
+5. Por cada bloque, en este orden:
+   - **Opciones con letra** (`a)`, `a.`, `a.-`, …): exige **4** opciones → columnas
+     `a,b,c,d`.
+   - **Opciones con guion** (líneas `^\s*-\s+`): acepta **3 o 4** guiones; mapea a
+     `a,b,c,d` (si son 3, `d` queda vacía). Enunciado multilínea; texto de opción
+     hasta el siguiente guion al inicio de línea.
+   - Si ninguno encaja: fila con `parse_ok=False` y opciones vacías.
+6. **Reservas**: tras banner `PREGUNTAS DE RESERVA`, renumerar 1→N+1, 2→N+2…
+   (N = última pregunta principal).
+7. **Anuladas**: `pregunta=ANULADA.`, opciones `" "`, `correcta=ANULADA`.
+8. Quitar prefijo numérico del enunciado (`N.-`, etc.) en columna `pregunta`.
+9. Plantilla `correcta`: auto en últimas páginas **o** manual (`respuestas` JSON o texto
    tipo `1.B`, `1 B`, `1.B    26.B`).
 
 ### Salida CSV
@@ -33,25 +47,27 @@ el formato esperado. **No está limitada a una asignatura**: el usuario indica
 - Literalidad estricta; `csv.QUOTE_ALL`; UTF-8 con BOM.
 
 ### Limitaciones v1 (no prometer más de lo implementado)
-- **4 opciones fijas** (a–d). Ver roadmap v2 para exámenes de 3 opciones.
-- Formato fijo de pregunta/opciones (ver `extractor_estructurado.py`).
+- Cabecera CSV **siempre** con columnas `a,b,c,d` (aunque el PDF traiga solo 3 guiones).
+- Formato **letra**: requiere 4 opciones; si faltan → `parse_ok=False`.
+- Formato **guion**: 3 o 4 opciones válidas; con 3, columna `d` vacía y `parse_ok=True`.
+- Solo los dos formatos anteriores; otros layouts pueden requerir revisión manual.
 - PDFs escaneados, tablas complejas o formatos muy distintos pueden requerir revisión.
 - Preguntas mal parseadas: se incluyen con opciones vacías + `preguntas_no_parseadas`.
 - Nunca inventar enunciados, opciones ni `correcta`.
 
 ### Roadmap v2 (reservado, no implementar sin acordar)
-- Campo **`num_opciones`** (3 o 4) en la petición para exámenes con **solo tres
-  respuestas** (a, b, c) y una correcta. Implicará cabecera CSV variable
+- Campo **`num_opciones`** (3 o 4) en la petición para exámenes con etiquetas **a/b/c**
+  (sin guiones) y solo tres respuestas. Implicará cabecera CSV variable
   (`numero,pregunta,a,b,c,correcta,materia` vs la actual con `d`) y ajustes en
   extractor, builder y validador. **Preguntar al usuario** antes de cambiar el
-  esquema por defecto.
+  esquema por defecto. El modo guion con 3 opciones **ya está en v1** sin ese parámetro.
 
 ## Estructura
 - `api/index.py` — FastAPI app: `/api/health`, `/api/convert`, `/api/preview`.
 - `lib/` — módulos de dominio:
   - `pdf_parser.py` (PyMuPDF / fitz)
   - `plantilla.py` (respuestas en últimas hojas)
-  - `extractor_estructurado.py` (preguntas + opciones a/b/c/d, con `parse_ok`)
+  - `extractor_estructurado.py` (secuencial 1..N, letra a/b/c/d o guion `-`, `parse_ok`)
   - `csv_builder.py` (QUOTE_ALL, UTF-8 con BOM)
   - `validator.py` (filas, columnas, repetidas, vacías, `filas_esperadas`)
   - `storage.py` (Vercel Blob)
@@ -71,8 +87,8 @@ el formato esperado. **No está limitada a una asignatura**: el usuario indica
 | `python.mdc` | Estilo Python, dependencias, CSV, alcance del código |
 | `script-base.mdc` | Correspondencia con `docs/base_pdf_a_csv.txt`, diferencias intencionadas |
 
-Todos aplican `alwaysApply: true`. El alcance funcional y el roadmap `num_opciones`
-(3\|4) están documentados en los cinco.
+Todos aplican `alwaysApply: true`. Formatos letra/guion, reservas, anuladas y
+roadmap `num_opciones` (3\|4) están documentados en los cinco.
 
 ## Reglas operativas
 - **No** crear commits ni push automáticos. El usuario decide cuándo subir a Git.
@@ -92,6 +108,9 @@ Todos aplican `alwaysApply: true`. El alcance funcional y el roadmap `num_opcion
 - Cabecera **configurable por petición** (sinónimos aceptados para la
   columna materia: `materia`, `bloque`, `tema`, `asignatura`).
 - Modo único: **estructurado** (preguntas + opciones + plantilla).
+- Opciones: formato **letra** (4) o **guion** (3–4, fallback); ver `pdf-csv-dominio.mdc`.
+- Reservas renumeradas tras banner `PREGUNTAS DE RESERVA`.
+- Anuladas: `pregunta=ANULADA.`, `correcta=ANULADA`, opciones `" "`.
 - Plantilla `correcta`: auto desde últimas páginas + override manual.
 - Preguntas mal parseadas: se **incluyen** con opciones vacías (`parse_ok=False`)
   y se listan en `preguntas_no_parseadas`. **Nunca** se inventan.

@@ -38,7 +38,9 @@ alwaysApply: true
   número de filas útiles no coincide (ej. 27 = 25 + 2 reservas).
 - `n` (solo preview, opcional, 1–50): nº de filas a devolver. Default 5.
 - `num_opciones` (**v2 planificado**, aún no expuesto): `3` o `4`. Para exámenes
-  con tres respuestas (a, b, c) y una correcta. Reservar en diseño; no romper v1.
+  con etiquetas **letra** y solo tres respuestas; implicaría cabecera CSV sin `d`.
+  En v1, exámenes con opciones `-` ya admiten 3 guiones (columna `d` vacía) sin
+  este parámetro.
 
 ## CORS
 - `allow_origins=["*"]` mientras la API sea pública sin auth.

@@ -39,14 +39,22 @@ comportamiento alineado con sus secciones 6 y 7.
    `plantilla.py`: formatos `1.B`, `1 B`, dos columnas).
 8. **Solo preguntas numeradas** filtradas y ordenadas 1, 2, 3…
    (`extraer_preguntas_filtradas`).
+9. **Delimitación secuencial** 1→2→3… con candidatos en línea e inline tras `. `;
+   ignora números fuera de orden (importes, fechas).
+10. **Opciones con guion** como fallback si no hay 4 letras: líneas `- `, 3–4
+    opciones, mapeo a `a,b,c,d`.
+11. **Reservas renumeradas** tras `PREGUNTAS DE RESERVA` (1→N+1, 2→N+2…).
+12. **Anuladas** normalizadas a `ANULADA.` / `" "` / `correcta=ANULADA` en CSV.
+13. **`limpiar_campo`** en `csv_builder`: una línea por celda (sin saltos del PDF).
 
 ## Alcance funcional (alineado con `proyecto.mdc`)
 
 - **Cualquier examen tipo test** y **cualquier asignatura** (campo `materia`).
-- **Cualquier número de preguntas**; reservas incluidas si están numeradas.
-- **v1**: 4 opciones fijas (a–d). **v2 planificado**: `num_opciones=3|4` para
-  exámenes con tres respuestas; implica cambios en extractor, `csv_builder`,
-  validador y API. **Preguntar al usuario** antes de implementar.
+- **Cualquier número de preguntas**; reservas incluidas y renumeradas.
+- **v1**: formato letra (4 opciones) o guion (3–4 opciones); cabecera CSV fija
+  con `a,b,c,d`. **v2 planificado**: `num_opciones=3|4` en API para exámenes
+  con etiquetas letra y tres respuestas; implica cabecera variable. **Preguntar
+  al usuario** antes de implementar.
 
 ## Cosas que NO se deben tocar sin pedir permiso al usuario
 

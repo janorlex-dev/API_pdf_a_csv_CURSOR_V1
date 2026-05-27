@@ -44,6 +44,7 @@ _RE_OPCION_NORMALIZADA = re.compile(
     r"(?m)^\s*([abcdABCD])\s*(?:\.\-|[\.\)]|\))\s*"
 )
 _RE_OPCION_BUSCAR = re.compile(r"\n\s*([abcd])\)\s*")
+_RE_INICIO_OPCION_GUION = re.compile(r"^\s*-\s+(.*)$")
 _RE_PALABRA_ANULADA = re.compile(r"(?i)pregunta\s+anulada")
 _RE_ENUNCIADO_ANULADA = re.compile(r"(?i)^\s*ANULADA\.?\s*$")
 _RE_MARCADOR_PAGINA = re.compile(r"---\s*PAGE\s+\d+\s*---", re.I)
@@ -214,8 +215,75 @@ def _truncar_antes_siguiente(bloque: str, numero: str) -> str:
     return bloque
 
 
+def _parsear_opciones_letra(bloque: str) -> tuple[str, dict[str, str]] | None:
+    """Opciones con etiqueta a/b/c/d (``a)``, ``a.-``, etc.)."""
+    opt_iter = list(_RE_OPCION_BUSCAR.finditer("\n" + bloque))
+    if len(opt_iter) < 4:
+        return None
+
+    bloque2 = "\n" + bloque
+    enunciado = _limpiar_fragmento(bloque2[: opt_iter[0].start()].strip())
+    opciones: dict[str, str] = {}
+    for j, om in enumerate(opt_iter[:4]):
+        letra = om.group(1)
+        inicio = om.end()
+        fin = opt_iter[j + 1].start() if j + 1 < 4 else len(bloque2)
+        opciones[letra] = _limpiar_fragmento(bloque2[inicio:fin])
+    return enunciado, opciones
+
+
+def _parsear_opciones_guion(bloque: str) -> tuple[str, list[str]] | None:
+    """Opciones con guion al inicio de línea (3 o 4); texto multilínea hasta el siguiente ``-``."""
+    enunciado_partes: list[str] = []
+    opciones_partes: list[list[str]] = []
+    actual: list[str] | None = None
+
+    for linea in bloque.splitlines():
+        m = _RE_INICIO_OPCION_GUION.match(linea)
+        if m:
+            if actual is not None:
+                opciones_partes.append(actual)
+            actual = [m.group(1).strip()]
+        elif actual is not None:
+            if linea.strip():
+                actual.append(linea.strip())
+        elif linea.strip():
+            enunciado_partes.append(linea.strip())
+
+    if actual is not None:
+        opciones_partes.append(actual)
+
+    if len(opciones_partes) not in (3, 4):
+        return None
+
+    enunciado = _limpiar_fragmento("\n".join(enunciado_partes))
+    textos = [_limpiar_fragmento(" ".join(partes)) for partes in opciones_partes]
+    return enunciado, textos
+
+
+def _pregunta_desde_opciones(
+    numero: str,
+    enunciado: str,
+    a: str,
+    b: str,
+    c: str,
+    d: str,
+) -> Pregunta:
+    enunciado = quitar_prefijo_numero(numero, enunciado)
+    return Pregunta(
+        numero=numero,
+        enunciado=enunciado,
+        a=a,
+        b=b,
+        c=c,
+        d=d,
+        anulada=False,
+        parse_ok=bool(enunciado.strip()),
+    )
+
+
 def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
-    """Parsea un bloque (script base ``parse_questions_basic``)."""
+    """Parsea un bloque (script base ``parse_questions_basic`` + opciones con guion)."""
     bloque = _truncar_antes_siguiente(bloque, numero)
     bloque = _RE_CORTE_PLANTILLA.split(bloque)[0].strip()
     if not bloque.strip():
@@ -224,47 +292,42 @@ def _parsear_bloque(numero: str, bloque: str) -> Pregunta | None:
     if _es_anulada(bloque):
         return _pregunta_anulada(numero, bloque, bloque)
 
-    opt_iter = list(_RE_OPCION_BUSCAR.finditer("\n" + bloque))
-    if len(opt_iter) < 4:
-        enunciado_crudo = _limpiar_fragmento(bloque)
-        if not enunciado_crudo.strip():
-            return None
-        if _es_anulada(enunciado_crudo):
-            return _pregunta_anulada(numero, bloque, enunciado_crudo)
-        return Pregunta(
-            numero=numero,
-            enunciado=quitar_prefijo_numero(numero, enunciado_crudo),
-            a="",
-            b="",
-            c="",
-            d="",
-            anulada=False,
-            parse_ok=False,
+    letras = _parsear_opciones_letra(bloque)
+    if letras is not None:
+        enunciado, opciones = letras
+        if _es_anulada(enunciado) or _es_anulada(bloque):
+            return _pregunta_anulada(numero, bloque, enunciado)
+        return _pregunta_desde_opciones(
+            numero,
+            enunciado,
+            opciones.get("a", ""),
+            opciones.get("b", ""),
+            opciones.get("c", ""),
+            opciones.get("d", ""),
         )
 
-    bloque2 = "\n" + bloque
-    enunciado = _limpiar_fragmento(bloque2[: opt_iter[0].start()].strip())
-    enunciado = quitar_prefijo_numero(numero, enunciado)
+    guiones = _parsear_opciones_guion(bloque)
+    if guiones is not None:
+        enunciado, opts = guiones
+        if _es_anulada(enunciado) or _es_anulada(bloque):
+            return _pregunta_anulada(numero, bloque, enunciado)
+        d = opts[3] if len(opts) == 4 else ""
+        return _pregunta_desde_opciones(numero, enunciado, opts[0], opts[1], opts[2], d)
 
-    if _es_anulada(enunciado) or _es_anulada(bloque):
-        return _pregunta_anulada(numero, bloque, enunciado)
-
-    opciones: dict[str, str] = {}
-    for j, om in enumerate(opt_iter[:4]):
-        letra = om.group(1)
-        inicio = om.end()
-        fin = opt_iter[j + 1].start() if j + 1 < 4 else len(bloque2)
-        opciones[letra] = _limpiar_fragmento(bloque2[inicio:fin])
-
+    enunciado_crudo = _limpiar_fragmento(bloque)
+    if not enunciado_crudo.strip():
+        return None
+    if _es_anulada(enunciado_crudo):
+        return _pregunta_anulada(numero, bloque, enunciado_crudo)
     return Pregunta(
         numero=numero,
-        enunciado=enunciado,
-        a=opciones.get("a", ""),
-        b=opciones.get("b", ""),
-        c=opciones.get("c", ""),
-        d=opciones.get("d", ""),
+        enunciado=quitar_prefijo_numero(numero, enunciado_crudo),
+        a="",
+        b="",
+        c="",
+        d="",
         anulada=False,
-        parse_ok=bool(enunciado.strip()),
+        parse_ok=False,
     )
 
 

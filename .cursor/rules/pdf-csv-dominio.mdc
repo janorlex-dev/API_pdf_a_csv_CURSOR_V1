@@ -14,14 +14,39 @@ instrucciones de negocio del usuario.
 
 - **Asignatura**: cualquiera; la API no filtra por materia concreta.
 - **Número de preguntas**: cualquiera; incluir reservas si están numeradas en el PDF.
-- **Número de opciones (v1)**: fijo en **4** (a, b, c, d).
-- **Número de opciones (v2, planificado)**: parámetro `num_opciones=3|4` para
-  exámenes con tres respuestas (a, b, c) y una sola correcta. No implementar
-  sin acordar cambio de cabecera CSV y endpoints con el usuario.
+- **Cabecera CSV (v1)**: siempre `a,b,c,d` (o sinónimos en cabecera custom); no se omite
+  la columna `d` aunque el examen tenga solo 3 respuestas en formato guion.
 - **Plantilla manual**: si el PDF no trae solucionario al final, el cliente puede
   pegar la plantilla en `respuestas` (JSON o texto multilínea con pares número–letra).
 - **Objetivo de extracción**: del PDF solo el bloque de preguntas numeradas; excluir
   plantilla de la última hoja; no volcar solucionario en columnas de enunciado/opciones.
+
+## Formatos de pregunta y opciones (v1 implementado)
+
+### Numeración y delimitación
+- Marcadores de inicio: `N.-`, `N. ` (no confundir con decimales `1.200`), `N -`,
+  `N)` al inicio de línea; también inline tras `. ` en la misma línea.
+- Delimitación **secuencial** 1, 2, 3…: solo se acepta el número que toca; el resto
+  se ignora como ruido dentro del bloque o fuera de secuencia.
+- Prefijo numérico (`N.-`, etc.) se **quita** de la columna `pregunta`.
+
+### Formato letra (prioritario)
+- Opciones con etiqueta `a`, `b`, `c`, `d`: `a)`, `a.`, `a.-`, etc. (normalizadas
+  internamente).
+- Requiere **exactamente 4** opciones para `parse_ok=True`.
+- Si falla, se intenta formato guion antes de marcar mal parseada.
+
+### Formato guion (fallback)
+- Pregunta: `N - enunciado` (puede ser multilínea hasta el primer guion de opción).
+- Opciones: líneas que empiezan con `- `; el texto de cada opción continúa en líneas
+  siguientes **sin** guion hasta el siguiente `-` al inicio de línea.
+- Acepta **3 o 4** guiones; se mapean a columnas `a,b,c,d` (con 3, `d` vacía).
+- Con 3 o 4 guiones válidos → `parse_ok=True`.
+
+### v2 planificado (no implementado)
+- Parámetro API `num_opciones=3|4` para exámenes con etiquetas **letra** y solo
+  tres respuestas; implica cabecera CSV variable. **Preguntar al usuario** antes
+  de implementar. No confundir con el modo guion de 3 opciones, ya soportado en v1.
 
 ## Literalidad estricta
 - **No** acortar enunciados.
@@ -44,20 +69,20 @@ instrucciones de negocio del usuario.
 
 ## Reservas
 - Incluir **siempre** las preguntas de reserva si aparecen numeradas en el
-  bloque de preguntas.
+  bloque de preguntas (tras banner `PREGUNTAS DE RESERVA`).
+- Renumerar reservas que empiezan en 1, 2… a N+1, N+2… (N = última principal).
 - No omitirlas aunque la plantilla no les asigne respuesta.
 - Si el cliente pasa `filas_esperadas`, el validador avisa cuando faltan o
   sobran (ej. 27 = 25 + 2 reservas; 22 = 20 + 2 reservas).
 
 ## Anuladas
-- Si el PDF marca una pregunta como anulada, prefijar el enunciado con
-  `PREGUNTA ANULADA. ` (si no lo está ya).
+- Si el PDF marca una pregunta como anulada (`ANULADA`, `pregunta anulada`, etc.):
+  `pregunta=ANULADA.`, opciones `" "` (espacio), `correcta=ANULADA`, `parse_ok=True`.
 - No inventar la pregunta sustituta. Si el PDF la cita, se respeta tal cual.
 
 ## Preguntas mal parseadas
-- Si el extractor **no encuentra el número de opciones esperado** (4 en v1:
-  a, b, c, d; 3 en v2 planificado: a, b, c) en una pregunta, la fila se incluye
-  con `parse_ok=False` y opciones vacías, **NO** se descarta.
+- Si el extractor **no obtiene opciones válidas** (4 letras, o 3–4 guiones), la fila
+  se incluye con `parse_ok=False` y opciones vacías, **NO** se descarta.
 - Esos `numero` se devuelven en `preguntas_no_parseadas` para revisión humana.
 - Nunca rellenar los huecos con texto inventado.
 

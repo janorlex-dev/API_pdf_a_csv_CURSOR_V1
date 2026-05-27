@@ -210,3 +210,50 @@ d.- op d
     assert "septiembre de 2018" in q22.enunciado
     assert "diciembre de 2018" in q22.enunciado
     assert "tres meses" in q22.b
+
+
+def test_opciones_formato_guion_pregunta() -> None:
+    """Examen tipo ``1 -`` pregunta y ``-`` opción (multilínea hasta el siguiente ``-``)."""
+    texto = """
+1 - La Abogada Helena asiste a un cliente, Hernán, en una causa penal.
+¿Podría Helena desatender las instrucciones de su cliente?
+- Sí, puede rechazar las instrucciones de Hernán
+  y no recusar al Juez.
+- No, debe seguir las instrucciones del cliente pues es quien decide.
+- No, debe atender a las instrucciones haciendo constar este extremo.
+- Sí, pero renunciando de inmediato a la defensa.
+2 - Rafael y Antonia están intentando llegar a una solución extrajudicial.
+¿Qué debe hacer Rafael?
+- Puede o no comunicar a Antonia que da por concluido el intento.
+- Debe comunicar a Antonia la finalización solo si es preceptiva la intervención.
+- Tiene que comunicar a Antonia que han concluido las gestiones extrajudiciales.
+- No tiene que comunicar nada a Antonia.
+"""
+    out = _parsear_texto_preguntas(texto)
+    assert [p.numero for p in out] == ["1", "2"]
+    q1 = out[0]
+    assert q1.parse_ok is True
+    assert "Helena" in q1.enunciado
+    assert "no recusar al Juez" in q1.a
+    assert "renunciando" in q1.d
+    assert q1.b.startswith("No, debe seguir")
+
+
+def test_opciones_guion_tres_respuestas() -> None:
+    texto = """
+1 - Enunciado de prueba con tres opciones:
+- Primera opción
+- Segunda opción
+- Tercera opción
+2 - Otra pregunta:
+- A
+- B
+- C
+- D
+"""
+    out = _parsear_texto_preguntas(texto)
+    q1 = out[0]
+    assert q1.parse_ok is True
+    assert q1.a == "Primera opción"
+    assert q1.c == "Tercera opción"
+    assert q1.d == ""
