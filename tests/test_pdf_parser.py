@@ -5,11 +5,12 @@ from lib.pdf_parser import cortar_antes_plantilla, limpiar_textos_pagina, quitar
 
 
 def test_cortar_antes_plantilla_laboral_guion_bajo() -> None:
-    texto = (
-        "d)- Opción final de la pregunta. laboral_2018_1\n"
-        "1.B          2.C\n"
-    )
-    assert cortar_antes_plantilla(texto) == "d)- Opción final de la pregunta."
+    for cabecera in ("laboral_2018_1", "laboral_2018_2"):
+        texto = (
+            f"d)- Opción final de la pregunta. {cabecera}\n"
+            "1.A          15.B\n"
+        )
+        assert cortar_antes_plantilla(texto) == "d)- Opción final de la pregunta."
 
 
 def test_limpia_membrete_repetido_entre_paginas() -> None:

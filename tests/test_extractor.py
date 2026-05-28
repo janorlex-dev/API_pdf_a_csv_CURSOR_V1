@@ -4,8 +4,10 @@ from lib.extractor_estructurado import (
     Pregunta,
     _parsear_texto_preguntas,
     _renumerar_reservas,
+    extraer_preguntas,
     quitar_prefijo_numero,
 )
+from lib.pdf_parser import PaginaPDF
 
 
 def test_quitar_prefijo_numero() -> None:
@@ -82,6 +84,37 @@ d) op d final COMPROBADA 1.b 2.c 28.anulada
     assert len(out) == 1
     assert out[0].d == "op d final"
     assert "COMPROBADA" not in out[0].d
+
+
+def test_reserva_dos_laboral_2018_2_no_contamina_opcion_d() -> None:
+    """Reserva 2 renumerada a 27; cabecera ``laboral_2018_2`` no debe entrar en opción d."""
+    texto = """
+25.- Ultima principal:
+a)- op a
+b)- op b
+c)- op c
+d)- op d
+
+PREGUNTAS DE RESERVA
+1.- Reserva uno:
+a)- ra
+b)- rb
+c)- rc
+d)- rd
+2.- El Juzgado de lo Social de Cartagena dicta Sentencia declarando un despido como improcedente. La parte demandada decide interponer recurso de suplicación contra la Sentencia al entender que los hechos probados de la Resolución no son ciertos. En qué situación se encuentra la demandada:
+a)- No podrá recurrir por ese motivo porque no se permite la revisión de hechos probados en la Sentencia.
+b)- Podrá recurrir y alegar como motivo la revisión de hechos declarados probados a la vista de todas las pruebas practicadas.
+c)- Podrá recurrir y alegar como motivo la revisión de hechos declarados probados a la vista de las pruebas documentales y periciales practicadas.
+d)- Podrá recurrir y alegar como motivo la revisión de hechos probados a la vista exclusivamente de las pruebas documentales practicadas. laboral_2018_2
+1.A          15.B
+2.B          16.B
+27.C
+"""
+    out = extraer_preguntas([PaginaPDF(numero=1, texto=texto)])
+    q27 = next(p for p in out if p.numero == "27")
+    assert q27.d.endswith("pruebas documentales practicadas.")
+    assert "laboral_2018_2" not in q27.d
+    assert "1.A" not in q27.d
 
 
 def test_corte_cabecera_laboral_guion_bajo_no_contamina_opcion() -> None:
